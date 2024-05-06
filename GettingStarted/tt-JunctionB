@@ -1,0 +1,17 @@
+# station-name,longitude,latitude
+JunctionB,116.1100,-31.7200
+# departure-time,route-name,departing-from,arrival-time,arrival-station
+06:01,busB_C,stopB,06:37,BusportC
+07:06,busB_C,stopB,07:42,BusportC
+08:11,busB_C,stopB,08:47,BusportC
+09:17,busB_C,stopB,09:52,BusportC
+10:20,busB_C,stopB,10:56,BusportC
+11:26,busB_C,stopB,12:01,BusportC
+12:32,busB_C,stopB,13:09,BusportC
+13:37,busB_C,stopB,14:14,BusportC
+14:42,busB_C,stopB,15:19,BusportC
+15:50,busB_C,stopB,16:25,BusportC
+16:54,busB_C,stopB,17:31,BusportC
+18:02,busB_C,stopB,18:37,BusportC
+19:07,busB_C,stopB,19:44,BusportC
+20:12,busB_C,stopB,20:49,BusportC
