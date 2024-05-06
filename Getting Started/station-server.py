@@ -1,18 +1,13 @@
-# echo-server.py
+#Needs to start server from this .py
+#Invokes this way: ./station-server.py [station name] [TCP port] [UDP port] [neighbour(s)]
 
-import socket
-
-HOST = "127.0.0.1"  # Standard loopback interface address (localhost)
-PORT = 2001  # Port to listen on (non-privileged ports are > 1023)
-
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    s.bind((HOST, PORT))
-    s.listen()
-    conn, addr = s.accept()
-    with conn:
-        print(f"Connected by {addr}")
-        # while True:
-        #     data = conn.recv(1024)
-        #     if not data:
-        #         break
-        #     conn.sendall(data)
+#accept query from tcp port and bidirectional from UDP port 
+#call timetable.py to get fastest times to reach my neighbours --> in the form of --> 
+#---> (APPEND DESTINATION HERE BECAUSE WE GET THIS FROM HTML) Departure time, route name, departing from, arrival time, arrival station 
+#
+#./stn-server.py; timetable(tt-busportB, currenttime [which is given to us by html])
+#./stn-server.py; dict timetable = timetable.py(timetablename, currenttime);
+#
+# if destination in timetable: return constructed query back to html
+# else: send query to all neighbours 
+# query format: [Destination] [station] [departure time] [arrival time] ... 
