@@ -10,4 +10,15 @@
 #
 # if destination in timetable: return constructed query back to html
 # else: send query to all neighbours 
-# query format: [Destination] [station] [departure time] [arrival time] ... 
+
+# output_to_html = "Catch Bus-N from station-A at time HH:MM, to arrive at station-B at time HH:MM"
+# query_format = "[Destination], [station], [departure time], [arrival time], ..."
+
+# What to send to neighbours???? We were going to just use another query which was similar to just doing a TCP/IP request to neighbour
+
+
+# UDP send
+# UDP receive
+# TCP send
+# TCP receive
+
