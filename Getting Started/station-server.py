@@ -69,15 +69,16 @@ def udp_server(udp_port, neighbors=None):
         sys.exit(1)
 
 def main():
-    if len(sys.argv) < 3:
-        print("Usage: ./station <tcp_port> <udp_port> [<neighbor1> <neighbor2> ...]")
+    if len(sys.argv) < 4:
+        print("Usage: ./station <station_name> <tcp_port> <udp_port> [<neighbor1> <neighbor2> ...]")
         return
     
     try:
         # Extract the port numbers and optional neighbors from command-line arguments
-        tcp_port = int(sys.argv[1])
-        udp_port = int(sys.argv[2])
-        neighbors = sys.argv[3:]
+        station_name = sys.argv[1]
+        tcp_port = int(sys.argv[2])
+        udp_port = int(sys.argv[3])
+        neighbors = sys.argv[4:]
     except ValueError:
         print("Invalid port number")
         return
@@ -110,6 +111,7 @@ def main():
                     if match:
                         busport = match.group(1)
                         print("Selected busport:", busport)
+                        print(station_name)
 
                         # Append source UDP port to busport with ';' as delimiter
                         busport += ';' + str(udp_port)
