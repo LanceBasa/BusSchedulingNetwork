@@ -28,6 +28,8 @@ import re
 import select
 import os
 import datetime
+import time
+
 
 num_neighbors = len(sys.argv) - 3
 neighbor_dictionary=[]
@@ -167,6 +169,8 @@ def main():
     filename = "tt-"+station_name
     modT= os.path.getmtime(filename)
     path=''
+
+    
     while True:
         # Use select to wait for I/O events
         readable, _, _ = select.select(inputs, [], [])
@@ -212,14 +216,15 @@ def main():
 
 
                         path += busport + ';' + str(udp_port)
-                        
                         # Send busport to specified neighbors
                         if neighbors:
+                            path_udp = path.split(';')[1:]
                             for neighbor in neighbors:
                                 neighbor_host, neighbor_port = neighbor.split(':')
-                                neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                                neighbor_socket.sendto(path.encode('utf-8'), (neighbor_host, int(neighbor_port)))
-                                neighbor_socket.close()
+                                if neighbor_port not in path_udp:
+                                    neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                                    neighbor_socket.sendto(path.encode('utf-8'), (neighbor_host, int(neighbor_port)))
+                                    neighbor_socket.close()
 
                 # client_socket.close()
                 
@@ -227,22 +232,31 @@ def main():
                 # Handle UDP message
                 data, client_address = udp_socket.recvfrom(1024)
                 print(f"Received UDP message from {client_address}: {data.decode('utf-8')}")
-                # print("path" + path)
-                # path += ';' + str(udp_port) 
+                print("Appending my udp to the string.")
                 path = data.decode('utf-8') + ';' + str(udp_port)
                 # print(data.decode('utf-8'))
-                print(data.decode('utf-8'))
+                # print(data.decode('utf-8'))
                 print(path)
 
-                # Optionally process data or communicate with neighbors
                 if neighbors:
-                    busport, source_port = data.decode('utf-8').split(';')
+                    path_udp = path.split(';')[1:]
                     for neighbor in neighbors:
                         neighbor_host, neighbor_port = neighbor.split(':')
-                        if neighbor_port != source_port:
+                        if neighbor_port not in path_udp:
                             neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                            neighbor_socket.sendto(data, (neighbor_host, int(neighbor_port)))
+                            neighbor_socket.sendto(path.encode('utf-8'), (neighbor_host, int(neighbor_port)))
+                            time.sleep(1)
                             neighbor_socket.close()
 
 if __name__ == "__main__":
     main()
+
+
+#commands to run servers to use the timetable in getting started directory
+# python3 ./station-server.py BusportB 4003 4004 localhost:4006 localhost:4010 
+# python3 ./station-server.py StationC 4005 4006 localhost:4004 localhost:4008 localhost:4010 
+# python3 ./station-server.py JunctionE 4009 4010 localhost:4002 localhost:4004 localhost:4006 
+
+# python3 ./station-server.py JunctionA 4001 4002 localhost:4010 localhost:4012 
+# python3 ./station-server.py TerminalD 4007 4008 localhost:4006 
+# python3 ./station-server.py BusportF 4011 4012 localhost:4002 
