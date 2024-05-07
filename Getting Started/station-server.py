@@ -25,6 +25,8 @@ import socket
 import sys
 import re
 import select
+import os
+import datetime
 
 def tcp_server(tcp_port):
     # Define the host
@@ -68,6 +70,71 @@ def udp_server(udp_port, neighbors=None):
         print(f"Error binding UDP socket: {e}")
         sys.exit(1)
 
+
+
+def loadfile(filename):
+    #list of dictionary timetable to return storing depart time, route name, depart from, arrival time, arrival station
+    timetable=[]
+    with open (filename) as fread:
+
+        # header of timetables, can remove if not needed. if removed modify earliest function to include the very first entry
+        for line in fread:
+            if not line.startswith("#"):
+                stationInfo= line.strip().split(',')
+                timetable.append({
+                    'StationName': stationInfo[0],
+                    'Longitude': stationInfo[1],
+                    'Latitude': stationInfo[2],
+                })
+                break
+
+        # actual timetable data
+        for line in fread:
+            if not line.startswith("#") and line.strip():
+                datarow = line.strip().split(',')
+                timetable.append({
+                    'departTime':datarow[0],
+                    'routeName': datarow[1],
+                    'departFrom': datarow[2],
+                    'arriveTime': datarow[3],
+                    'arriveAt': datarow[4]
+                })
+        return timetable
+
+#check happens in main. if file has been modified. reload the file by rereading the function
+def update(filename):    
+    return loadfile(filename)
+
+def earliest(curTime, timetable):
+    
+    unique_destinations = {}
+
+    #The for loop will do the following
+    #filter the times that are not the past
+    #if the destination is not in the unique_destinations entry add it
+    #otherwise check the uniq_destination entry and update if required (keeping earliest time)
+    for entry in timetable[1:]:
+        destination = entry['arriveAt']
+        depart_time = entry['departTime']
+        depart_time_obj = datetime.datetime.strptime(depart_time, '%H:%M').time()   #convert text time into datetime time
+        if depart_time_obj >= curTime:     
+            if destination not in unique_destinations:
+                unique_destinations[destination] = entry
+            else:
+                if depart_time < unique_destinations[destination]['departTime']:
+                    unique_destinations[destination] = entry
+                                                              
+
+    return list(unique_destinations.values()) #convert back to list
+
+
+
+
+ # ------------------ timetable functions end ---------------------------------
+
+
+
+
 def main():
     if len(sys.argv) < 4:
         print("Usage: ./station <station_name> <tcp_port> <udp_port> [<neighbor1> <neighbor2> ...]")
@@ -92,6 +159,9 @@ def main():
     # Create lists of sockets to monitor
     inputs = [tcp_socket, udp_socket]
 
+    timetable = [] #full timetable stored. on startup empty
+    filename = "tt-"+station_name
+    modT= os.path.getmtime(filename)
     while True:
         # Use select to wait for I/O events
         readable, _, _ = select.select(inputs, [], [])
@@ -111,9 +181,29 @@ def main():
                     if match:
                         busport = match.group(1)
                         print("Selected busport:", busport)
-                        print(station_name)
 
-                        # Append source UDP port to busport with ';' as delimiter
+
+                        # get current time (only applies in tcp connection. in udp it uses the arrival time in the string)
+                        currentTime = datetime.datetime.now().time()
+                        
+
+                        if not timetable or modT != os.path.getmtime(filename) : 
+                            modT=os.path.getmtime(filename)
+                            print(modT)
+
+                            timetable = loadfile(filename)
+                            print("Timetable Updated\n")
+                        
+                        paths = earliest(currentTime, timetable)
+
+                        # print("Full timetable")
+                        # for item in timetable:print(item)
+                        
+                        # print("Earliest neighbouring path")
+                        # for item in paths:print (item)
+
+
+
                         busport += ';' + str(udp_port)
                         
                         # Send busport to specified neighbors
