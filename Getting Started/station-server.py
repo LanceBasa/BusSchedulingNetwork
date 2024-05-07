@@ -25,83 +25,49 @@
 import socket
 import sys
 import re
+import select
 
 def tcp_server(tcp_port):
     # Define the host
     host = 'localhost'  # Listen on localhost
     
-    # Create a socket object
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # Create a TCP socket object
+    tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     
     try:
         # Bind the socket to the host and port
-        server_socket.bind((host, tcp_port))
+        tcp_socket.bind((host, tcp_port))
         
         # Start listening for incoming connections
-        server_socket.listen(1)
+        tcp_socket.listen(5)
         print(f"TCP server listening for incoming connections on port {tcp_port}...")
         
-        # Accept incoming connections
-        client_socket, client_address = server_socket.accept()
-        print(f"TCP connection established with {client_address}")
-        
-        # Receive data from the client
-        while True:
-            data = client_socket.recv(1024)
-            if not data:
-                break
-            
-            # Extract the value of 'to' parameter from the request
-            request = data.decode('utf-8')
-            match = re.search(r'GET /.*\?to=([^\s&]+)', request)
-            if match:
-                busport = match.group(1)
-                print("Selected busport:", busport)
-            
-    except KeyboardInterrupt:
-        print("TCP server stopped by user.")
-        server_socket.close()
-        
-    finally:
-        # Close the socket
-        server_socket.close()
+        return tcp_socket
+    
+    except OSError as e:
+        print(f"Error binding TCP socket: {e}")
+        sys.exit(1)
 
 def udp_server(udp_port, neighbors=None):
     # Define the host
     host = 'localhost'  # Listen on localhost
     
-    # Create a socket object
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # Create a UDP socket object
+    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     
     try:
         # Bind the socket to the host and port
-        server_socket.bind((host, udp_port))
+        udp_socket.bind((host, udp_port))
         
         print(f"UDP server listening on port {udp_port}...")
         
-        # Receive data from clients
-        while True:
-            data, client_address = server_socket.recvfrom(1024)
-            if not data:
-                break
-            
-            print(f"Received UDP message from {client_address}: {data.decode('utf-8')}")
-            
-            # Optionally process data or communicate with neighbors
-            if neighbors:
-                for neighbor in neighbors:
-                    neighbor_host, neighbor_port = neighbor.split(':')
-                    neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    neighbor_socket.sendto(data, (neighbor_host, int(neighbor_port)))
-                    neighbor_socket.close()
-            
-    except KeyboardInterrupt:
-        print("UDP server stopped by user.")
-        server_socket.close()
-        
-    finally:
-        # Close the socket
-        server_socket.close()
+        return udp_socket
+    
+    except OSError as e:
+        print(f"Error binding UDP socket: {e}")
+        sys.exit(1)
 
 def main():
     if len(sys.argv) < 3:
@@ -118,11 +84,50 @@ def main():
         return
 
     # Start TCP server
-    tcp_server(tcp_port)
+    tcp_socket = tcp_server(tcp_port)
     
     # Start UDP server
-    udp_server(udp_port, neighbors)
+    udp_socket = udp_server(udp_port, neighbors)
+
+    # Create lists of sockets to monitor
+    inputs = [tcp_socket, udp_socket]
+
+    while True:
+        # Use select to wait for I/O events
+        readable, _, _ = select.select(inputs, [], [])
+
+        for sock in readable:
+            if sock == tcp_socket:
+                # Handle TCP connection
+                client_socket, client_address = tcp_socket.accept()
+                print(f"TCP connection established with {client_address}")
+                
+                # Receive data from the client
+                data = client_socket.recv(1024)
+                if data:
+                    # Extract the value of 'to' parameter from the request
+                    request = data.decode('utf-8')
+                    match = re.search(r'GET /.*\?to=([^\s&]+)', request)
+                    if match:
+                        busport = match.group(1)
+                        print("Selected busport:", busport)
+                
+                # client_socket.close()
+                
+            elif sock == udp_socket:
+                # Handle UDP message
+                data, client_address = udp_socket.recvfrom(1024)
+                print(f"Received UDP message from {client_address}: {data.decode('utf-8')}")
+                
+                # Optionally process data or communicate with neighbors
+                if neighbors:
+                    for neighbor in neighbors:
+                        neighbor_host, neighbor_port = neighbor.split(':')
+                        neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                        neighbor_socket.sendto(data, (neighbor_host, int(neighbor_port)))
+                        neighbor_socket.close()
 
 if __name__ == "__main__":
     main()
+
 
