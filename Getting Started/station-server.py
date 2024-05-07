@@ -21,7 +21,6 @@
 # UDP receive
 # TCP send
 # TCP receive
-
 import socket
 import sys
 import re
@@ -101,7 +100,7 @@ def main():
                 # Handle TCP connection
                 client_socket, client_address = tcp_socket.accept()
                 print(f"TCP connection established with {client_address}")
-                
+
                 # Receive data from the client
                 data = client_socket.recv(1024)
                 if data:
@@ -111,23 +110,34 @@ def main():
                     if match:
                         busport = match.group(1)
                         print("Selected busport:", busport)
-                
+
+                        # Append source UDP port to busport with ';' as delimiter
+                        busport += ';' + str(udp_port)
+                        
+                        # Send busport to specified neighbors
+                        if neighbors:
+                            for neighbor in neighbors:
+                                neighbor_host, neighbor_port = neighbor.split(':')
+                                neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                                neighbor_socket.sendto(busport.encode('utf-8'), (neighbor_host, int(neighbor_port)))
+                                neighbor_socket.close()
+
                 # client_socket.close()
                 
             elif sock == udp_socket:
                 # Handle UDP message
                 data, client_address = udp_socket.recvfrom(1024)
                 print(f"Received UDP message from {client_address}: {data.decode('utf-8')}")
-                
+
                 # Optionally process data or communicate with neighbors
                 if neighbors:
+                    busport, source_port = data.decode('utf-8').split(';')
                     for neighbor in neighbors:
                         neighbor_host, neighbor_port = neighbor.split(':')
-                        neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                        neighbor_socket.sendto(data, (neighbor_host, int(neighbor_port)))
-                        neighbor_socket.close()
+                        if neighbor_port != source_port:
+                            neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                            neighbor_socket.sendto(data, (neighbor_host, int(neighbor_port)))
+                            neighbor_socket.close()
 
 if __name__ == "__main__":
     main()
-
-
