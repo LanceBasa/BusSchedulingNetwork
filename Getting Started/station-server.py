@@ -31,8 +31,9 @@ import datetime
 import time
 
 
-num_neighbors = len(sys.argv) - 3
-neighbor_dictionary=[]
+num_neighbors = len(sys.argv) - 4
+print( num_neighbors)
+neighbor_dictionary={}
 
 def tcp_server(tcp_port):
     # Define the host
@@ -142,7 +143,6 @@ def earliest(curTime, timetable):
 
 
 def main():
-    paths = []
     if len(sys.argv) < 4:
         print("Usage: ./station <station_name> <tcp_port> <udp_port> [<neighbor1> <neighbor2> ...]")
         return
@@ -171,24 +171,35 @@ def main():
     modT= os.path.getmtime(filename)
     path=''
 
-    if not timetable or modT != os.path.getmtime(filename) : 
-        modT=os.path.getmtime(filename)
-        print(modT)
+    time.sleep(3)
+    while num_neighbors != len(neighbor_dictionary):
+        # Use select to wait for I/O events
 
-        timetable = loadfile(filename)
-        print("Timetable Updated\n")
+        if neighbors:
+            for neighbor in neighbors:
+                neighbor_host, neighbor_port = neighbor.split(':')
+                neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sendInfo = "!"+station_name+":"+ str(udp_port)
+                neighbor_socket.sendto(sendInfo.encode('utf-8'), (neighbor_host, int(neighbor_port)))
+                neighbor_socket.close()
+
+            data, client_address = udp_socket.recvfrom(1024)
+            if data:
+                sName,portNum = data.decode('utf-8')[1:].split(':')
+                print(f"Received UDP message from {client_address}: {sName}:{portNum}")
+                if portNum not in neighbor_dictionary.keys():
+                    neighbor_dictionary[portNum] = sName
+        # print(len(neighbor_dictionary), num_neighbors)
+        time.sleep(2)
+    
+
+    print(f"I am {station_name} my neighbours are{neighbor_dictionary}")
 
     while True:
         # Use select to wait for I/O events
         readable, _, _ = select.select(inputs, [], [])
 
-        currentTime = datetime.datetime.now().time()
 
-
-
-        paths = earliest(currentTime, timetable)
-        for item in paths:
-            print(item)
         
         for sock in readable:
             if sock == tcp_socket:
@@ -208,25 +219,34 @@ def main():
 
 
                         # get current time (only applies in tcp connection. in udp it uses the arrival time in the string)
+                        currentTime = datetime.datetime.now().time()
+                        
 
-                        # print("Full timetable")
-                        # for item in timetable:print(item)
+                        if not timetable or modT != os.path.getmtime(filename) : 
+                            modT=os.path.getmtime(filename)
+                            print(modT)
+
+                            timetable = loadfile(filename)
+                            print("Timetable Updated\n")
+                        
+                        paths = earliest(currentTime, timetable)
+                        # if not paths: print("No more bus for today. Walk home ;("); break
+
                         
                         print("Earliest neighbouring path")
                         for item in paths:print (item)
 
 
-                    
+                        print("Appending my udp to the string.")
                         path += busport + ';' + str(udp_port)
-                        #path += 
+                        path_udp = path.split(';')[1:]
+
+
                         # Send busport to specified neighbors
                         if neighbors:
-                            path_udp = path.split(';')[1:]
                             for neighbor in neighbors:
                                 neighbor_host, neighbor_port = neighbor.split(':')
                                 if neighbor_port not in path_udp:
-                                    #if clause --> 
-                                    #path2 = path + ';' + paths[neighbor_port]['departTime'] + ";" + paths[neighbor_port]['arriveTime']      
                                     neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                                     neighbor_socket.sendto(path.encode('utf-8'), (neighbor_host, int(neighbor_port)))
                                     neighbor_socket.close()
@@ -234,24 +254,38 @@ def main():
                 # client_socket.close()
                 
             elif sock == udp_socket:
+
+
                 # Handle UDP message
                 data, client_address = udp_socket.recvfrom(1024)
-                print(f"Received UDP message from {client_address}: {data.decode('utf-8')}")
-                print("Appending my udp to the string.")
-                path = data.decode('utf-8') + ';' + str(udp_port) + ';' + paths[0]['departTime'] + ";" + paths[0]['arriveTime']
-                # print(data.decode('utf-8'))
-                # print(data.decode('utf-8'))
-                print(path)
+                gotData =  data.decode('utf-8')[0]
+                if gotData[0] is not '!':
+                    print(f"Received UDP message from {client_address}: {data.decode('utf-8')}")
+                    print("Appending my udp to the string.")
+                    path = data.decode('utf-8') + ';' + str(udp_port)
+                    # print(data.decode('utf-8'))
+                    # print(data.decode('utf-8'))
 
-                if neighbors:
-                    path_udp = path.split(';')[1:]
-                    for neighbor in neighbors:
-                        neighbor_host, neighbor_port = neighbor.split(':')
-                        if neighbor_port not in path_udp:
-                            neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                            neighbor_socket.sendto(path.encode('utf-8'), (neighbor_host, int(neighbor_port)))
-                            time.sleep(1)
-                            neighbor_socket.close()
+                    print(path)
+                    # print("\nPrinting stuff")
+                    # print(station_name)
+                    # print(path.split(';')[0])
+
+                    final_destination=path.split(';')[0]
+                    if station_name == final_destination:
+                        print(f"you have arrived!{path}")
+                        break
+
+
+                    if neighbors:
+                        path_udp = path.split(';')[1:]
+                        for neighbor in neighbors:
+                            neighbor_host, neighbor_port = neighbor.split(':')
+                            if neighbor_port not in path_udp:
+                                neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                                neighbor_socket.sendto(path.encode('utf-8'), (neighbor_host, int(neighbor_port)))
+                                time.sleep(1)
+                                neighbor_socket.close()
 
 if __name__ == "__main__":
     main()
