@@ -377,15 +377,15 @@ def main():
                     backtrack_1 = result[-1].split("-")
                     result[-1] = backtrack_1[0]
 
-                    print("I AM PRINTING result")
-                    #['~BusportF', 'BusportB', '15:25', '15:50', 'StationC', '16:02', '16:16', 'JunctionE', 
-                    # '18:05', '18:57', 'JunctionA', '20:28', '21:16', 'BusportF-BusportB']
-                    #len == 14
+                    # print("print stuff")
+                    # print (result)
+                    # print(backtrack_1)
 
-                    for item in range(1, len(result) - 3,3):
-                        print(f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}" )
+                    if station_name == result[1]:
+                        for item in range(1, len(result) - 3,3):
+                            print(f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}" )
 
-                    break
+                        break
 
                     
 
