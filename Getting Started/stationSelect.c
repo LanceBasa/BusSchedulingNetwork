@@ -242,3 +242,8 @@ int main(int argc, char *argv[]) {
     close(udp_sock);
     return 0;
 }
+
+
+//./stationS BusportB 4003 5003 localhost:5004 localhost:5005
+//./stationS BusportF 4004 5004 localhost:5003 localhost:5005
+//./stationS JunctionA 4005 5005 localhost:5003 localhost:5004
