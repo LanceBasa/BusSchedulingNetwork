@@ -135,11 +135,6 @@ def earliest(curTime, timetable):
     return list(unique_destinations.values()) #convert back to list
 
 
-
-
- # ------------------ timetable functions end ---------------------------------
-
-
 def update_timetable(tt, filename, modT):
     if not tt or modT != os.path.getmtime(filename) : 
         tt = loadfile(filename)
@@ -153,8 +148,38 @@ def get_ttEntry(stationName,timetable_list):
             # If 'JunctionE' is found, print its index position
             return index
 
+ # ------------------ timetable functions end ---------------------------------
+def search_by_value(dictionary, search_value):
+    # Iterate through the dictionary's values
+    for key, value in dictionary.items():
+        if value == search_value:
+            return key  # Return the key corresponding to the search value
+    return None  # Return None if the value is not found
+
+def backtrack(path):
+    print(path)
+    split_path = path.split('-')
+    print("HHHHHHHHHHHHHHHHEEEEEEEEEEEEERRRRRRRRRREEEEEEEEEEEEE")
+
+    print()
+    previous_station = split_path[-1]
+
+    key = search_by_value(neighbor_dictionary, previous_station)
+    previous_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  
+    previous_socket.sendto(path.encode('utf-8'), ('localhost', int(key)))
+    
+
+
+def extract_non_numbers(string):
+    parts = string.split(';')
+    non_numbers = [part for part in parts if not any(char.isdigit() or char == ':' for char in part)]
+    return non_numbers
+
+
+
 
 def main():
+    result = []
     if len(sys.argv) < 4:
         print("Usage: ./station <station_name> <tcp_port> <udp_port> [<neighbor1> <neighbor2> ...]")
         return
@@ -283,6 +308,9 @@ def main():
                 # Handle UDP message
                 data, client_address = udp_socket.recvfrom(1024)
                 gotData =  data.decode('utf-8')[0]
+                print("HHHHHHHHHHHHHHHHEEEEEEEEEEEEERRRRRRRRRREEEEEEEEEEEEE")
+
+                print(gotData)
                 if gotData != '!':
                     print(f"Received UDP message from {client_address}: {data.decode('utf-8')}")
                     # print("Appending my Station Name to the string.")
@@ -301,7 +329,15 @@ def main():
                     final_destination=path.split(';')[0]
                     if station_name == final_destination:
                         print(f"you have arrived! You got here at {currentTime}. Path Taken:\n{path}")
+                        path += ';'+ station_name
+                        result = extract_non_numbers(path)[1:-1]
+                        path = "-" + path  
+                        for item in result:
+                            path += "-" + item
+                        backtrack(path)
+                        #print(path) 
                         break
+                    
 
                     path_taken = path.split(';')[1:]
 
@@ -313,7 +349,13 @@ def main():
                                 tt_index = get_ttEntry(neighbor_name,earliestPaths)
                                 earliestRide = earliestPaths[tt_index]
                                 print(f"Earliest path to {neighbor_name}: {earliestRide}")
-                                pathUpdate = path + ';' + station_name + ';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime']
+                                pathUpdate = path + ';' + station_name + ';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime'] 
+                                #result = extract_non_numbers(pathUpdate)
+                                #print("HHHHHHHHHHHHHHHHEEEEEEEEEEEEERRRRRRRRRREEEEEEEEEEEEE")
+                                #print(result)
+                                #print("HHHHHHHHHHHHHHHHEEEEEEEEEEEEERRRRRRRRRREEEEEEEEEEEEE")
+
+
                                 print (f"Send this to{neighbor_name}: {pathUpdate}")
                             else: print(f"no more bus/train leaving at this hour{currentTime}")
 
@@ -322,6 +364,13 @@ def main():
                                 neighbor_socket.sendto(pathUpdate.encode('utf-8'), (neighbor_host, int(neighbor_port)))
                                 time.sleep(1)
                                 neighbor_socket.close()
+
+                elif gotData == '-':
+                    print("Received backtrack message")
+                    print(data.decode('utf-8'))
+                    break   
+
+                    
 
 if __name__ == "__main__":
     main()
