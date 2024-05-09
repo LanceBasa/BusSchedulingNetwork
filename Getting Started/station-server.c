@@ -24,7 +24,7 @@ typedef struct {
 void add_timetable_entry(Timetable *timetable, TimetableEntry entry) {
     if (timetable->numEntries >= timetable->capacity) {
         timetable->capacity *= 2;
-        timetable->entries = realloc(timetable->entries, timetable->capacity * sizeof(TimetableEntry));
+        timetable->entries = realloc(timetable->entries, timetable->capacity * sizeof(TimetableEntry)); //GPT
         if (!timetable->entries) {
             perror("Failed to resize timetable entries");
             exit(1);
@@ -65,6 +65,8 @@ void read_timetable(const char *filename, Timetable *timetable) {
     fclose(file);
 }
 
+
+/**
 void print_timetable(const Timetable *timetable) {
     printf("Station: %s\n", timetable->stationName);
     printf("Location: %s, %s\n", timetable->longitude, timetable->latitude);
@@ -74,7 +76,7 @@ void print_timetable(const Timetable *timetable) {
                timetable->entries[i].departingFrom, timetable->entries[i].arrivalTime,
                timetable->entries[i].arrivalStation);
     }
-}
+}**/
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
