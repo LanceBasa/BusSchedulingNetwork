@@ -140,6 +140,18 @@ def earliest(curTime, timetable):
  # ------------------ timetable functions end ---------------------------------
 
 
+def update_timetable(tt, filename, modT):
+    if not tt or modT != os.path.getmtime(filename) : 
+        tt = loadfile(filename)
+        print("Timetable Updated\n")
+        return tt
+    return tt
+
+def get_ttEntry(stationName,timetable_list):
+    for index, item in enumerate(timetable_list):
+        if item.get('arriveAt') == stationName:
+            # If 'JunctionE' is found, print its index position
+            return index
 
 
 def main():
@@ -165,9 +177,10 @@ def main():
 
     # Create lists of sockets to monitor
     inputs = [tcp_socket, udp_socket]
-
-    timetable = [] #full timetable stored. on startup empty
     filename = "tt-"+station_name
+
+    timetable = loadfile(filename)
+
     modT= os.path.getmtime(filename)
     path=''
 
@@ -192,10 +205,14 @@ def main():
         # print(len(neighbor_dictionary), num_neighbors)
         time.sleep(2)
     
+    os.system('clear') #NOTE REMOVE LATER
 
+    print("Timetable Loaded")
     print(f"I am {station_name} my neighbours are{neighbor_dictionary}")
 
     while True:
+
+
         # Use select to wait for I/O events
         readable, _, _ = select.select(inputs, [], [])
 
@@ -203,6 +220,7 @@ def main():
         
         for sock in readable:
             if sock == tcp_socket:
+
                 # Handle TCP connection
                 client_socket, client_address = tcp_socket.accept()
                 print(f"TCP connection established with {client_address}")
@@ -218,35 +236,41 @@ def main():
                         print("Selected busport:", busport)
 
 
+                       
+
+
+                        # check timetable for change every tcp and udp request
+                        timetable=update_timetable(timetable, filename, modT)
+
                         # get current time (only applies in tcp connection. in udp it uses the arrival time in the string)
                         currentTime = datetime.datetime.now().time()
-                        
-
-                        if not timetable or modT != os.path.getmtime(filename) : 
-                            modT=os.path.getmtime(filename)
-                            print(modT)
-
-                            timetable = loadfile(filename)
-                            print("Timetable Updated\n")
-                        
-                        paths = earliest(currentTime, timetable)
+                        earliestPaths = earliest(currentTime, timetable)
                         # if not paths: print("No more bus for today. Walk home ;("); break
 
                         
-                        print("Earliest neighbouring path")
-                        for item in paths:print (item)
+
+                        
+
+                        # path += busport + ';' + station_name
+                        path_taken = path.split(';')[1:]
 
 
-                        print("Appending my udp to the string.")
-                        path += busport + ';' + str(udp_port)
-                        path_udp = path.split(';')[1:]
-
-
-                        # Send busport to specified neighbors
+                        # Send string to neighbours
                         if neighbors:
                             for neighbor in neighbors:
+                                path=''
                                 neighbor_host, neighbor_port = neighbor.split(':')
-                                if neighbor_port not in path_udp:
+                                neighbor_name=neighbor_dictionary[neighbor_port]
+
+
+                                tt_index = get_ttEntry(neighbor_name,earliestPaths)
+                                earliestRide = earliestPaths[tt_index]
+                                print(f"Earliest path to {neighbor_name}: {earliestRide}")
+                                path += busport + ';' + station_name + ';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime']
+                                print (f"Send this to{neighbor_name}: {path}")
+
+
+                                if neighbor_port not in path_taken:
                                     neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                                     neighbor_socket.sendto(path.encode('utf-8'), (neighbor_host, int(neighbor_port)))
                                     neighbor_socket.close()
@@ -259,31 +283,43 @@ def main():
                 # Handle UDP message
                 data, client_address = udp_socket.recvfrom(1024)
                 gotData =  data.decode('utf-8')[0]
-                if gotData[0] is not '!':
+                if gotData != '!':
                     print(f"Received UDP message from {client_address}: {data.decode('utf-8')}")
-                    print("Appending my udp to the string.")
-                    path = data.decode('utf-8') + ';' + str(udp_port)
-                    # print(data.decode('utf-8'))
-                    # print(data.decode('utf-8'))
+                    # print("Appending my Station Name to the string.")
+                    path = data.decode('utf-8')
+                    # print(path)
 
-                    print(path)
-                    # print("\nPrinting stuff")
-                    # print(station_name)
-                    # print(path.split(';')[0])
+                    # check timetable for change every tcp and udp request
+                    timetable=update_timetable(timetable, filename, modT)
+
+                    # get current time - this is arrival time of previous station. different to tcp
+                    currentTime = datetime.datetime.strptime(path.split(';')[-1], '%H:%M').time()
+                    earliestPaths = earliest(currentTime, timetable)
+                    # if not paths: print("No more bus for today. Walk home ;("); break
+                    # print(f"arrivalTime{path.split(';')[-1]}")
 
                     final_destination=path.split(';')[0]
                     if station_name == final_destination:
-                        print(f"you have arrived!{path}")
+                        print(f"you have arrived! You got here at {currentTime}. Path Taken:\n{path}")
                         break
 
+                    path_taken = path.split(';')[1:]
 
                     if neighbors:
-                        path_udp = path.split(';')[1:]
                         for neighbor in neighbors:
                             neighbor_host, neighbor_port = neighbor.split(':')
-                            if neighbor_port not in path_udp:
+                            neighbor_name=neighbor_dictionary[neighbor_port]
+                            if earliestPaths:
+                                tt_index = get_ttEntry(neighbor_name,earliestPaths)
+                                earliestRide = earliestPaths[tt_index]
+                                print(f"Earliest path to {neighbor_name}: {earliestRide}")
+                                pathUpdate = path + ';' + station_name + ';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime']
+                                print (f"Send this to{neighbor_name}: {pathUpdate}")
+                            else: print(f"no more bus/train leaving at this hour{currentTime}")
+
+                            if neighbor_name not in path_taken:
                                 neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                                neighbor_socket.sendto(path.encode('utf-8'), (neighbor_host, int(neighbor_port)))
+                                neighbor_socket.sendto(pathUpdate.encode('utf-8'), (neighbor_host, int(neighbor_port)))
                                 time.sleep(1)
                                 neighbor_socket.close()
 
