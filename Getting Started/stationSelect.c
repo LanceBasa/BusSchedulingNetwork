@@ -6,15 +6,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/select.h>
 #include <errno.h>
 
 #define MAX_LINE_LENGTH 256
@@ -91,7 +82,19 @@ void print_timetable(const Timetable *timetable) {
     }
 }
 
-// Assume other parts of your code like data structures and helper functions are here.
+void extract_station_name(const char *buffer, char *station_name) {
+    const char *to_marker = "GET /?to=";
+    const char *http_marker = " HTTP/1.1";
+    
+    const char *start_pos = strstr(buffer, to_marker);
+    start_pos += strlen(to_marker);
+
+    const char *end_pos = strstr(start_pos, http_marker);
+
+    size_t station_len = end_pos - start_pos;
+    strncpy(station_name, start_pos, station_len);
+    station_name[station_len] = '\0'; // Null-terminate the station name
+}
 
 int main(int argc, char *argv[]) {
     if (argc < 4) {
@@ -173,7 +176,14 @@ int main(int argc, char *argv[]) {
             memset(buffer, 0, sizeof(buffer));
             
             if (read(connfd, buffer, sizeof(buffer)) > 0) {
-                printf("TCP client: %s\n", buffer);
+
+                char station_name[256];
+                extract_station_name(buffer, station_name);
+                printf("Bus station name: %s\n", station_name);
+
+                
+
+                //sending response to the web 'Hello World'
                 char response[] = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nHello, world!\n";
                 write(connfd, response, strlen(response));
             }
