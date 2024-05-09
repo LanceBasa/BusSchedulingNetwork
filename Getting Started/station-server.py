@@ -309,19 +309,23 @@ def main():
                         for neighbor in neighbors:
                             neighbor_host, neighbor_port = neighbor.split(':')
                             neighbor_name=neighbor_dictionary[neighbor_port]
-                            if earliestPaths:
-                                tt_index = get_ttEntry(neighbor_name,earliestPaths)
-                                earliestRide = earliestPaths[tt_index]
-                                print(f"Earliest path to {neighbor_name}: {earliestRide}")
-                                pathUpdate = path + ';' + station_name + ';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime']
-                                print (f"Send this to{neighbor_name}: {pathUpdate}")
-                            else: print(f"no more bus/train leaving at this hour{currentTime}")
+
 
                             if neighbor_name not in path_taken:
+                                if earliestPaths:
+                                    tt_index = get_ttEntry(neighbor_name,earliestPaths)
+                                    earliestRide = earliestPaths[tt_index]
+                                    print(f"Earliest path to {neighbor_name}: {earliestRide}")
+                                    pathUpdate = path + ';' + station_name + ';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime']
+                                    print (f"Send this to{neighbor_name}: {pathUpdate}")
+                                else: print(f"no more bus/train leaving at this hour{currentTime}")
+
                                 neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                                 neighbor_socket.sendto(pathUpdate.encode('utf-8'), (neighbor_host, int(neighbor_port)))
                                 time.sleep(1)
                                 neighbor_socket.close()
+                            else:
+                                print("Dead end. return back")
 
 if __name__ == "__main__":
     main()
