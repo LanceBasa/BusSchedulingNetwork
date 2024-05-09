@@ -371,8 +371,25 @@ def main():
                     print("Received backtrack message")
                     backPath = data.decode('utf-8')
                     backtrack(backPath)
+                    result = backPath.split(";") #
+                    backtrack_1 = result[-1].split("-")
+                    # print("I AM PRINTING BACKRTRACK")
+                    # print(backtrack_1)
+                    print("I AM PRINTING result")
+                    #['~BusportF', 'BusportB', '15:25', '15:50', 'StationC', '16:02', '16:16', 'JunctionE', 
+                    # '18:05', '18:57', 'JunctionA', '20:28', '21:16', 'BusportF-BusportB']
 
-                    break   
+                    print(result)
+                    if station_name == backtrack_1[-1] :
+
+                        
+                        for item in range(len(backtrack_1 + 1 )):
+                            print (f"Leaving from {result[item+1]} at {result[item+2]}, arriving at {result[item+3]} on {result[item+4]}")
+                            # "Leaving from BUSPORTB at 15:25, arriving at 15:50")
+                            # "Leaving from STATIONC at 16:02, arriving at 16:16")
+                            # "Leaving from JunctionE at 18:05, arriving at 18:57")
+    
+                        break   
 
                     
 
