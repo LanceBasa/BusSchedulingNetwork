@@ -5,7 +5,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <sys/select.h>
 #include <errno.h>
 
 #define MAX_LINE_LENGTH 256
@@ -96,9 +95,41 @@ void extract_station_name(const char *buffer, char *station_name) {
     station_name[station_len] = '\0'; // Null-terminate the station name
 }
 
+void send_to_neighbors(char **neighbors, int neighbor_count, const char *message) {
+    struct sockaddr_in neighbor_addr;
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        perror("UDP socket creation failed");
+        return;
+    }
+
+    memset(&neighbor_addr, 0, sizeof(neighbor_addr));
+    neighbor_addr.sin_family = AF_INET;
+
+    // Loop through all neighbors
+    for (int i = 0; i < neighbor_count; ++i) {
+        char host[256];
+        int port;
+
+        // Extract host and port
+        if (sscanf(neighbors[i], "%255[^:]:%d", host, &port) != 2) {
+            fprintf(stderr, "Invalid neighbor address: %s\n", neighbors[i]);
+            continue;
+        }
+
+        neighbor_addr.sin_port = htons(port);
+        inet_pton(AF_INET, host, &neighbor_addr.sin_addr);
+
+        // Send message to current neighbor
+        sendto(sockfd, message, strlen(message), 0, (SA *)&neighbor_addr, sizeof(neighbor_addr));
+    }
+
+    close(sockfd);
+}
+
 int main(int argc, char *argv[]) {
-    if (argc < 4) {
-        fprintf(stderr, "Usage: %s station-name browser-port query-port\n", argv[0]);
+    if (argc < 5) {
+        fprintf(stderr, "Usage: %s station-name browser-port query-port neighbor-host:neighbor-port [additional-neighbor-host:neighbor-port ...]\n", argv[0]);
         return 1;
     }
 
@@ -109,6 +140,10 @@ int main(int argc, char *argv[]) {
     socklen_t cliaddr_len = sizeof(cliaddr);
     int maxfd;
     char buffer[MAX];
+
+    // Neighbor addresses
+    char **neighbors = &argv[4];
+    int neighbor_count = argc - 4;
 
     // Setup TCP server
     tcp_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -176,18 +211,18 @@ int main(int argc, char *argv[]) {
             memset(buffer, 0, sizeof(buffer));
             
             if (read(connfd, buffer, sizeof(buffer)) > 0) {
-
                 char station_name[256];
                 extract_station_name(buffer, station_name);
-                printf("Bus station name: %s\n", station_name);
+                printf("Destination station name: %s\n", station_name);
 
-                
+                // Send the extracted station name to all neighbors
+                send_to_neighbors(neighbors, neighbor_count, station_name);
 
-                //sending response to the web 'Hello World'
+                // Respond to the web
                 char response[] = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nHello, world!\n";
                 write(connfd, response, strlen(response));
             }
-            
+
             close(connfd);
         }
 
@@ -196,7 +231,7 @@ int main(int argc, char *argv[]) {
             int n = recvfrom(udp_sock, buffer, sizeof(buffer), 0, (SA *)&cliaddr, &cliaddr_len);
             if (n > 0) {
                 buffer[n] = '\0';
-                printf("UDP client: %s\n", buffer);
+                printf("%s\n", buffer);
             } else if (n < 0) {
                 perror("UDP recvfrom failed");
             }
