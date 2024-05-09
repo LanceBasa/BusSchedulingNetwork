@@ -159,15 +159,18 @@ def search_by_value(dictionary, search_value):
 def backtrack(path):
     print(path)
     split_path = path.split('-')
-    print("HHHHHHHHHHHHHHHHEEEEEEEEEEEEERRRRRRRRRREEEEEEEEEEEEE")
+    split_path= split_path[:-1]
+    backtrackStr = "-".join(split_path)
+    print("This is split path", split_path)
+    path_len = len(split_path)
+    if path_len >1:
+        previous_station = split_path[-1]
 
-    print()
-    previous_station = split_path[-1]
+        key = search_by_value(neighbor_dictionary, previous_station)
+        previous_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  
+        previous_socket.sendto(backtrackStr.encode('utf-8'), ('localhost', int(key)))
 
-    key = search_by_value(neighbor_dictionary, previous_station)
-    previous_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  
-    previous_socket.sendto(path.encode('utf-8'), ('localhost', int(key)))
-    
+        
 
 
 def extract_non_numbers(string):
@@ -308,10 +311,9 @@ def main():
                 # Handle UDP message
                 data, client_address = udp_socket.recvfrom(1024)
                 gotData =  data.decode('utf-8')[0]
-                print("HHHHHHHHHHHHHHHHEEEEEEEEEEEEERRRRRRRRRREEEEEEEEEEEEE")
 
                 print(gotData)
-                if gotData != '!':
+                if gotData != '!' and gotData != '~':
                     print(f"Received UDP message from {client_address}: {data.decode('utf-8')}")
                     # print("Appending my Station Name to the string.")
                     path = data.decode('utf-8')
@@ -330,8 +332,8 @@ def main():
                     if station_name == final_destination:
                         print(f"you have arrived! You got here at {currentTime}. Path Taken:\n{path}")
                         path += ';'+ station_name
-                        result = extract_non_numbers(path)[1:-1]
-                        path = "-" + path  
+                        result = extract_non_numbers(path)[1:]
+                        path = "~" + path  
                         for item in result:
                             path += "-" + item
                         backtrack(path)
@@ -365,9 +367,11 @@ def main():
                                 time.sleep(1)
                                 neighbor_socket.close()
 
-                elif gotData == '-':
+                elif gotData == '~':
                     print("Received backtrack message")
-                    print(data.decode('utf-8'))
+                    backPath = data.decode('utf-8')
+                    backtrack(backPath)
+
                     break   
 
                     
