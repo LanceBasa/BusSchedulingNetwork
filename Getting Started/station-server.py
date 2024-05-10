@@ -30,6 +30,9 @@ import os
 import datetime
 import time
 
+import urllib.parse
+
+
 
 num_neighbors = len(sys.argv) - 4
 print( num_neighbors)
@@ -157,11 +160,9 @@ def search_by_value(dictionary, search_value):
     return None  # Return None if the value is not found
 
 def backtrack(path):
-    print(path)
     split_path = path.split('-')
     split_path= split_path[:-1]
     backtrackStr = "-".join(split_path)
-    print("This is split path", split_path)
     path_len = len(split_path)
     if path_len >1:
         previous_station = split_path[-1]
@@ -258,22 +259,27 @@ def main():
                 if data:
                     # Extract the value of 'to' parameter from the request
                     request = data.decode('utf-8')
-                    match = re.search(r'GET /.*\?to=([^\s&]+)', request)
+                    match = re.search(r'GET /.*\?from=([^&]+)&departure-time=([^&]+)&to=([^\s&]+)', request)
                     if match:
-                        busport = match.group(1)
-                        print("Selected busport:", busport)
+                        departure_time_encoded = match.group(2)
+                        departure_time = urllib.parse.unquote(departure_time_encoded)
+                        busport = match.group(3).strip()
+                        if station_name== busport:
+                            print(f"You are already at {station_name}")
+                            break
+                        else:
+                            print(f"Leaving {station_name} at {departure_time} to go to {busport}")
 
 
-                       
 
 
                         # check timetable for change every tcp and udp request
                         timetable=update_timetable(timetable, filename, modT)
 
                         # get current time (only applies in tcp connection. in udp it uses the arrival time in the string)
-                        currentTime = datetime.datetime.now().time()
+                        currentTime = datetime.datetime.strptime(departure_time, '%H:%M').time()
                         earliestPaths = earliest(currentTime, timetable)
-                        # if not paths: print("No more bus for today. Walk home ;("); break
+                        if not earliestPaths: print("No more bus for today. Walk home ;("); break
 
                         
 
@@ -293,9 +299,7 @@ def main():
 
                                 tt_index = get_ttEntry(neighbor_name,earliestPaths)
                                 earliestRide = earliestPaths[tt_index]
-                                print(f"Earliest path to {neighbor_name}: {earliestRide}")
                                 path += busport + ';' + station_name + ';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime']
-                                print (f"Send this to{neighbor_name}: {path}")
 
 
                                 if neighbor_port not in path_taken:
@@ -307,42 +311,39 @@ def main():
                 
             elif sock == udp_socket:
 
-
                 # Handle UDP message
                 data, client_address = udp_socket.recvfrom(1024)
-                gotData =  data.decode('utf-8')[0]
+                dataIdentifyer =  data.decode('utf-8')[0]
 
-                print(gotData)
-                if gotData != '!' and gotData != '~':
-                    print(f"Received UDP message from {client_address}: {data.decode('utf-8')}")
-                    # print("Appending my Station Name to the string.")
+                # If statement to check what is being recieved. ! is a ping and ~ is returning data.
+                if dataIdentifyer != '!' and dataIdentifyer != '~':
                     path = data.decode('utf-8')
-                    # print(path)
-
-                    # check timetable for change every tcp and udp request
-                    timetable=update_timetable(timetable, filename, modT)
-
-                    # get current time - this is arrival time of previous station. different to tcp
+                    print(f"\nReceived UDP message from {client_address}: {path}")
                     currentTime = datetime.datetime.strptime(path.split(';')[-1], '%H:%M').time()
-                    earliestPaths = earliest(currentTime, timetable)
-                    # if not paths: print("No more bus for today. Walk home ;("); break
-                    # print(f"arrivalTime{path.split(';')[-1]}")
 
+                    # Before continue and sending to other neighbours, check if the current station is the destination. 
+                    # If so, send response back to the source and break
                     final_destination=path.split(';')[0]
                     if station_name == final_destination:
-                        print(f"you have arrived! You got here at {currentTime}. Path Taken:\n{path}")
+                        print(f"\nQuery Success!\tCurrent time:{currentTime}\nPath taken:{path}\nNow returning query to source!\n")
                         path += ';'+ station_name
                         result = extract_non_numbers(path)[1:]
                         path = "~" + path  
                         for item in result:
                             path += "-" + item
                         backtrack(path)
-                        #print(path) 
                         break
+
+                    # check timetable for change every tcp and udp request
+                    timetable=update_timetable(timetable, filename, modT)
+
+                    # get current time - this is arrival time of previous station. different to tcp
+                    earliestPaths = earliest(currentTime, timetable)
+                    if not earliestPaths: print("No more bus for today. Walk home ;("); break
+
                     
-
+                    #if this station is not the final destination then send udp to neighbours.
                     path_taken = path.split(';')[1:]
-
                     if neighbors:
                         for neighbor in neighbors:
                             neighbor_host, neighbor_port = neighbor.split(':')
@@ -350,26 +351,20 @@ def main():
                             if earliestPaths:
                                 tt_index = get_ttEntry(neighbor_name,earliestPaths)
                                 earliestRide = earliestPaths[tt_index]
-                                print(f"Earliest path to {neighbor_name}: {earliestRide}")
+                                # print(f"Earliest path to {neighbor_name}: {earliestRide}")
                                 pathUpdate = path + ';' + station_name + ';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime'] 
-                                #result = extract_non_numbers(pathUpdate)
-                                #print("HHHHHHHHHHHHHHHHEEEEEEEEEEEEERRRRRRRRRREEEEEEEEEEEEE")
-                                #print(result)
-                                #print("HHHHHHHHHHHHHHHHEEEEEEEEEEEEERRRRRRRRRREEEEEEEEEEEEE")
-
-
-                                print (f"Send this to{neighbor_name}: {pathUpdate}")
                             else: print(f"no more bus/train leaving at this hour{currentTime}")
 
-                            if neighbor_name not in path_taken:
+                            if neighbor_name not in path_taken:         # to avoid looping, only send to neighbours that have not been visited.
                                 neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                                 neighbor_socket.sendto(pathUpdate.encode('utf-8'), (neighbor_host, int(neighbor_port)))
                                 time.sleep(1)
                                 neighbor_socket.close()
 
-                elif gotData == '~':
-                    print("Received backtrack message")
+                # This is to identify the incoming data as returning data
+                elif dataIdentifyer == '~':
                     backPath = data.decode('utf-8')
+                    print(f"\nReceived backtrack message {backPath}")
                     backtrack(backPath)
 
                     
@@ -377,14 +372,11 @@ def main():
                     backtrack_1 = result[-1].split("-")
                     result[-1] = backtrack_1[0]
 
-                    # print("print stuff")
-                    # print (result)
-                    # print(backtrack_1)
-
+                    #if this is the source station name who got the request from client return string information to client.
                     if station_name == result[1]:
+
                         for item in range(1, len(result) - 3,3):
                             print(f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}" )
-
                         break
 
                     

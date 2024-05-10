@@ -1,0 +1,91 @@
+<html>
+<head>
+    <script>
+        console.log('Script loaded and executed.');
+
+        function getCurrentTime() {
+          var now = new Date();
+          var hours = now.getHours()
+          var minutes = now.getMinutes()
+          var currentTimeString = hours%12 + ':' + minutes;
+          return currentTimeString;
+        }
+        
+        // Update the current time every second
+        function updateTime() {
+          var currentTimeElement = document.getElementById('current-time');
+          currentTimeElement.textContent = getCurrentTime();
+        }
+        
+        // Call updateTime function every second
+        setInterval(updateTime, 1000);
+        
+        console.log('Script loaded and executed.');
+    
+        updateTime()    
+
+        function setFormAction() {
+          var selectedValue = document.getElementById("from").value;
+          document.getElementById("myForm").action = selectedValue;
+        
+        }
+        </script>
+</head>
+<body style="background-image: url('https://images.assetsdelivery.com/compings_v2/zoaarts/zoaarts1810/zoaarts181000012.jpg'); background-repeat: repeat;">
+
+<style>
+div.box {
+  margin:		1em;
+  width:		50em;
+  border-radius:	6px;
+  border:		1px solid gray;
+  background-color:	honeydew;
+  padding:		0.4em;
+}
+</style>
+
+<div class="box">
+    <h3>&nbsp;Current time: <span id="current-time"></span></h3>
+</div>
+
+<div class="box">
+<form id="myForm">
+  <table>
+  <tr>
+    <td style="text-align: right;">Leaving from:</td>
+    <td style="text-align: left;">
+      <select name="from" id="from" onchange="setFormAction()" >
+        <option value="default" selected>Select a location</option>
+        <option value="http://localhost:4007/">TerminalD</option>
+        <option value="http://localhost:4003/">BusportB</option>
+        <option value="http://localhost:4011/">BusportF</option>
+        <option value="http://localhost:4001/">JunctionA</option>
+        <option value="http://localhost:4009/">JunctionE</option>
+        <option value="http://localhost:4005/">StationC</option>
+      </select>
+    </td> 
+    <td style="padding-left: 3em;">
+      <label for="departure-time">Departure time:</label>
+      <input type="time" id="departure-time" name="departure-time" value="09:00">
+    </td>
+    <td style="padding-left: 3em;">
+      <label for="destination">Destination:</label>
+      <select name="to">
+        <option value='BusportF'>BusportF</option>
+        <option value='JunctionA'>JunctionA</option>
+        <option value='JunctionE'>JunctionE</option>
+        <option value='StationC'>StationC</option>
+        <option value='TerminalD'>TerminalD</option>
+        <option value='BusportB'>BusportB</option>
+
+      </select>
+    </td>
+    <td style="padding-left: 3em;"><input type="submit" value=" Let's go! "></td>
+  </tr>
+  </table>
+</form>
+</div>
+
+</body>
+
+</html>
