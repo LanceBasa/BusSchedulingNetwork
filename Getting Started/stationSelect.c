@@ -6,10 +6,16 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <sys/stat.h>
+#include <time.h>
 
 #define MAX_LINE_LENGTH 256
 #define MAX 80
 #define SA struct sockaddr
+
+
+time_t last_modified = 0;
+
 
 typedef struct {
     char departureTime[6];
@@ -95,6 +101,65 @@ void extract_station_name(const char *buffer, char *station_name) {
     station_name[station_len] = '\0'; // Null-terminate the station name
 }
 
+// CODE TO CHECK LAST MODIFIED AND RELOAD
+void check_and_reload_timetable(Timetable *timetable, const char *filename) {
+    struct stat statbuf;
+
+    // Get the last modified time of the file
+    if (stat(filename, &statbuf) == -1) {
+        perror("Failed to get file status");
+        return;
+    }
+
+    // Compare the last modified time with the stored time
+    if (difftime(statbuf.st_mtime, last_modified) != 0) {
+        printf("Timetable file has been modified. Reloading...\n");
+        free(timetable->entries);  // Free existing entries
+        timetable->entries = NULL;
+        timetable->numEntries = 0;
+        timetable->capacity = 10;  // Reset capacity if dynamic resizing is used
+        timetable->entries = malloc(timetable->capacity * sizeof(TimetableEntry));
+
+        read_timetable(filename, timetable);
+        //print_timetable(timetable); // Optionally print the loaded timetable
+
+        last_modified = statbuf.st_mtime;  // Update the last modified global variable
+    }
+}
+
+
+// CODE TO FIND THE EARLIEST TIME
+
+// Helper function to compare time strings
+int compare_time(const char *time1, const char *time2) {
+    struct tm tm1, tm2;
+    strptime(time1, "%H:%M", &tm1);
+    strptime(time2, "%H:%M", &tm2);
+
+    // Convert struct tm to time_t and compare
+    time_t t1 = mktime(&tm1);
+    time_t t2 = mktime(&tm2);
+
+    if (t1 < t2) return -1;
+    if (t1 > t2) return 1;
+    return 0;
+}
+
+// Function to find the earliest transport option after a specified time
+TimetableEntry* earliest_transport(Timetable *timetable, const char *destination_station, const char *time) {
+    TimetableEntry *earliest = NULL;
+    for (size_t i = 0; i < timetable->numEntries; i++) {
+        if (strcmp(timetable->entries[i].arrivalStation, destination_station) == 0 && compare_time(timetable->entries[i].departureTime, time) > 0) {
+            if (earliest == NULL || compare_time(timetable->entries[i].departureTime, earliest->departureTime) < 0) {
+                earliest = &timetable->entries[i];
+            }
+        }
+    }
+    return earliest;
+}
+
+
+
 void send_to_neighbors(char **neighbors, int neighbor_count, const char *message) {
     struct sockaddr_in neighbor_addr;
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -133,6 +198,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    //TIMETABLE initialization
     char timetable_filename[64];
     snprintf(timetable_filename, sizeof(timetable_filename), "tt-%s", argv[1]);
 
@@ -226,6 +292,10 @@ int main(int argc, char *argv[]) {
             memset(buffer, 0, sizeof(buffer));
             
             if (read(connfd, buffer, sizeof(buffer)) > 0) {
+
+                check_and_reload_timetable(&timetable, timetable_filename);
+
+
                 char station_name[256];
                 extract_station_name(buffer, station_name);
                 printf("Destination station name: %s\n", station_name);
@@ -245,6 +315,8 @@ int main(int argc, char *argv[]) {
             memset(buffer, 0, sizeof(buffer));
             int n = recvfrom(udp_sock, buffer, sizeof(buffer), 0, (SA *)&cliaddr, &cliaddr_len);
             if (n > 0) {
+
+                check_and_reload_timetable(&timetable, timetable_filename);
                 buffer[n] = '\0';
                 printf("%s\n", buffer);
             } else if (n < 0) {
