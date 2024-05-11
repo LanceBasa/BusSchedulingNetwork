@@ -14,9 +14,9 @@
 typedef struct {
     char departureTime[6];
     char routeName[16];
-    char departingFrom[16];
+    char departingFrom[61];
     char arrivalTime[6];
-    char arrivalStation[16];
+    char arrivalStation[61];
 } TimetableEntry;
 
 typedef struct {
@@ -49,7 +49,7 @@ void read_timetable(const char *filename, Timetable *timetable) {
 
     char line[MAX_LINE_LENGTH];
     int is_station_info_read = 0;
-//CHECK STRING MANIPULATION
+
     while (fgets(line, sizeof(line), file)) {
         if (line[0] == '#') continue; // Skip comments
 
@@ -60,7 +60,7 @@ void read_timetable(const char *filename, Timetable *timetable) {
         }
 
         TimetableEntry entry;
-        if (sscanf(line, "%5[^,],%15[^,],%15[^,],%5[^,],%15s",
+        if (sscanf(line, "%5[^,],%15[^,],%60[^,],%5[^,],%60s",
                    entry.departureTime, entry.routeName, entry.departingFrom,
                    entry.arrivalTime, entry.arrivalStation) == 5) {
             add_timetable_entry(timetable, entry);
