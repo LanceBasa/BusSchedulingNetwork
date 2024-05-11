@@ -2,69 +2,121 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <errno.h>
-#include <sys/time.h>
 
-#define MAX_LINE_LENGTH 256
-#define BUFFER_SIZE 1024
-#define PING_DURATION 10 // Time in seconds to send pings
-
+// Structure for storing neighbor information
 typedef struct Neighbor {
-    char stationName[256];
-    int udpPort;
-    struct Neighbor *next;
+    char station_name[256];
+    int udp_port;
+    struct Neighbor* next;
 } Neighbor;
 
-void send_ping(int udp_sock, const char* station_name, int source_port, const char* dest_host, int dest_port) {
-    struct sockaddr_in dest_addr;
-    char message[BUFFER_SIZE];
-    snprintf(message, sizeof(message), "%s:%d", station_name, source_port);
+// Structure for sending pings
+typedef struct {
+    int udp_sock;
+    char station_name[256];
+    int source_port;
+    char** neighbors;
+    int num_neighbors;
+} PingArgs;
 
-    memset(&dest_addr, 0, sizeof(dest_addr));
-    dest_addr.sin_family = AF_INET;
-    dest_addr.sin_port = htons(dest_port);
-    inet_pton(AF_INET, dest_host, &dest_addr.sin_addr);
+Neighbor* head = NULL;
+pthread_mutex_t list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-    sendto(udp_sock, message, strlen(message), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
-    printf("UDP %d sending [%s:%d] to UDP %d\n", source_port, station_name, source_port, dest_port);
-}
-
-// Function to add neighbor to the list if it does not already exist
-void add_neighbor(Neighbor **head, char *stationName, int udpPort) {
-    Neighbor *current = *head;
-    while (current) {
-        if (strcmp(current->stationName, stationName) == 0 && current->udpPort == udpPort) {
+// Add a neighbor to the list if not already present
+void add_neighbor(const char* station_name, int udp_port) {
+    pthread_mutex_lock(&list_mutex);
+    Neighbor* current = head;
+    while (current != NULL) {
+        if (strcmp(current->station_name, station_name) == 0 && current->udp_port == udp_port) {
+            pthread_mutex_unlock(&list_mutex);
             return; // Neighbor already exists
         }
         current = current->next;
     }
-    // Add new neighbor
-    Neighbor *newNeighbor = malloc(sizeof(Neighbor));
-    strcpy(newNeighbor->stationName, stationName);
-    newNeighbor->udpPort = udpPort;
-    newNeighbor->next = *head;
-    *head = newNeighbor;
+
+    Neighbor* new_neighbor = (Neighbor*)malloc(sizeof(Neighbor));
+    strncpy(new_neighbor->station_name, station_name, sizeof(new_neighbor->station_name) - 1);
+    new_neighbor->udp_port = udp_port;
+    new_neighbor->next = head;
+    head = new_neighbor;
+    pthread_mutex_unlock(&list_mutex);
 }
 
-// Function to print the neighbors
-void print_neighbors(Neighbor *head) {
+// Print neighboring stations
+void print_neighbors() {
+    pthread_mutex_lock(&list_mutex);
+    const Neighbor* current = head;
     printf("List of neighboring stations:\n");
-    while (head) {
-        printf("Neighbor: %s at UDP port: %d\n", head->stationName, head->udpPort);
-        head = head->next;
+    while (current != NULL) {
+        printf("Neighbor: %s at UDP port: %d\n", current->station_name, current->udp_port);
+        current = current->next;
     }
+    pthread_mutex_unlock(&list_mutex);
 }
 
-int main(int argc, char *argv[]) {
+// Thread function to send pings periodically
+void* send_pings_thread(void* args) {
+    PingArgs* ping_args = (PingArgs*)args;
+    for (int i = 0; i < 10; i++) { // Send pings multiple times
+        for (int j = 0; j < ping_args->num_neighbors; j++) {
+            char neighbor_host[256];
+            int neighbor_port;
+            sscanf(ping_args->neighbors[j], "%255[^:]:%d", neighbor_host, &neighbor_port);
+
+            struct sockaddr_in dest_addr;
+            char message[256];
+            snprintf(message, sizeof(message), "%s:%d", ping_args->station_name, ping_args->source_port);
+
+            memset(&dest_addr, 0, sizeof(dest_addr));
+            dest_addr.sin_family = AF_INET;
+            dest_addr.sin_port = htons(neighbor_port);
+            inet_pton(AF_INET, neighbor_host, &dest_addr.sin_addr);
+
+            sendto(ping_args->udp_sock, message, strlen(message), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
+            printf("UDP %d sending [%s:%d] to UDP %d\n", ping_args->source_port, ping_args->station_name, ping_args->source_port, neighbor_port);
+        }
+        sleep(2); // Interval between pings
+    }
+    return NULL;
+}
+
+// Thread function to listen for incoming pings
+void* receive_pings_thread(void* args) {
+    int udp_sock = *(int*)args;
+    char buffer[256];
+    struct sockaddr_in sender_addr;
+    socklen_t sender_addr_len = sizeof(sender_addr);
+    while (1) {
+        int len = recvfrom(udp_sock, buffer, sizeof(buffer) - 1, 0, (struct sockaddr*)&sender_addr, &sender_addr_len);
+        if (len > 0) {
+            buffer[len] = '\0';
+            printf("Received: '%s' from %s\n", buffer, inet_ntoa(sender_addr.sin_addr));
+            char station_name[256];
+            int sender_udp_port;
+            sscanf(buffer, "%255[^:]:%d", station_name, &sender_udp_port);
+
+            add_neighbor(station_name, sender_udp_port);
+            print_neighbors();
+        } else {
+            perror("Error receiving data");
+        }
+    }
+    return NULL;
+}
+
+int main(int argc, char* argv[]) {
     if (argc < 4) {
         fprintf(stderr, "Usage: %s station-name browser-port query-port neighbor1 [neighbor2 ...]\n", argv[0]);
         return 1;
     }
 
     int udp_port = atoi(argv[3]);
+
+    // Create UDP socket
     int udp_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (udp_sock < 0) {
         perror("Failed to create UDP socket");
@@ -77,75 +129,31 @@ int main(int argc, char *argv[]) {
     my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     my_addr.sin_port = htons(udp_port);
 
-    if (bind(udp_sock, (struct sockaddr *)&my_addr, sizeof(my_addr)) < 0) {
+    if (bind(udp_sock, (struct sockaddr*)&my_addr, sizeof(my_addr)) < 0) {
         perror("UDP bind failed");
         close(udp_sock);
         return 1;
     }
 
-    struct timeval timeout;
-    timeout.tv_sec = PING_DURATION;
-    timeout.tv_usec = 0;
+    // Prepare ping arguments
+    PingArgs ping_args = {
+        .udp_sock = udp_sock,
+        .source_port = udp_port,
+        .neighbors = &argv[4],
+        .num_neighbors = argc - 4
+    };
+    strncpy(ping_args.station_name, argv[1], sizeof(ping_args.station_name) - 1);
 
-    // Send pings every second for PING_DURATION seconds
-    for (int i = 0; i < PING_DURATION; i++) {
-        for (int j = 4; j < argc; j++) {
-            char neighbor_host[256];
-            int neighbor_port;
-            sscanf(argv[j], "%255[^:]:%d", neighbor_host, &neighbor_port);
-            send_ping(udp_sock, argv[1], udp_port, neighbor_host, neighbor_port);
-        }
-        sleep(1);
-    }
+    // Create threads for sending and receiving pings
+    pthread_t send_thread, receive_thread;
+    pthread_create(&send_thread, NULL, send_pings_thread, &ping_args);
+    pthread_create(&receive_thread, NULL, receive_pings_thread, &udp_sock);
 
-    // Set socket to non-blocking mode to wait for incoming pings
-    setsockopt(udp_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+    // Wait for threads to complete
+    pthread_join(send_thread, NULL);
+    pthread_join(receive_thread, NULL);
 
-    Neighbor *head = NULL; // Head of the list of neighbors
-    char buffer[BUFFER_SIZE];
-    struct sockaddr_in sender_addr;
-    socklen_t sender_addr_len = sizeof(sender_addr);
-            printf("Waiting for pings...\n");
-    while (1) {
-        // Receive incoming pings
-        int len = recvfrom(udp_sock, buffer, sizeof(buffer) - 1, 0, (struct sockaddr *)&sender_addr, &sender_addr_len);
-        if (len > 0) {
-            buffer[len] = '\0';
-            printf("Received: '%s' from %s\n", buffer, inet_ntoa(sender_addr.sin_addr));
-            
-            // Parse the received message to extract station name and UDP port
-            char station_name[256];
-            int udp_port;
-            sscanf(buffer, "%255[^:]:%d", station_name, &udp_port);
-            
-            // Add the neighbor to the linked list if it does not exist already
-            add_neighbor(&head, station_name, udp_port);
-        } else {
-            // If recvfrom returns -1 and errno is EAGAIN, it means the timeout has been reached
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                printf("Timeout reached. No more pings will be received.\n");
-                break;
-            } else {
-                perror("Failed to receive from UDP socket");
-                break;
-            }
-        }
-    }
-
-    // Print all neighboring stations that were successfully received and stored
-    print_neighbors(head);
-
-    // Close the UDP socket
     close(udp_sock);
-
-    // Free the memory allocated for the linked list
-    Neighbor *current = head;
-    while (current != NULL) {
-        Neighbor *temp = current;
-        current = current->next;
-        free(temp);
-    }
-
     return 0;
 }
 
