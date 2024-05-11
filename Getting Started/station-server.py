@@ -213,7 +213,7 @@ def main():
     modT= os.path.getmtime(filename)
     path=''
 
-    # time.sleep(3)
+    time.sleep(3)
     while num_neighbors != len(neighbor_dictionary):
         # Use select to wait for I/O events
 
@@ -377,12 +377,20 @@ def main():
 
                         output_to_html = ''
 
-                        for item in range(1, len(result) - 3,3):
-                            # print(f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}" )
+                        for item in range(1, len(result) - 3, 3):
                             output_to_html += f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}\n" 
-                        #break
 
                         print(output_to_html)
+
+                        with open('response_page.html', 'r') as file:
+                            response_template = file.read()
+
+                        # Replace the placeholder in the HTML template with the dynamic content
+                        response_html = response_template.replace('{{dynamic_content}}', output_to_html)
+
+                        # Construct the HTTP response with the complete HTML content
+                        response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
+                        client_socket.sendall(response.encode('utf-8'))
 
                     
 
