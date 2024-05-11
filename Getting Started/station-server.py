@@ -382,11 +382,11 @@ def main():
 
                         print(output_to_html)
 
-                        with open('response_page.html', 'r') as file:
+                        with open('mywebpage2.html', 'r') as file:
                             response_template = file.read()
 
                         # Replace the placeholder in the HTML template with the dynamic content
-                        response_html = response_template.replace('{{dynamic_content}}', output_to_html)
+                        response_html = response_template.replace('{{Here_is_your_route}}', output_to_html)
 
                         # Construct the HTTP response with the complete HTML content
                         response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
