@@ -49,7 +49,7 @@ void read_timetable(const char *filename, Timetable *timetable) {
 
     char line[MAX_LINE_LENGTH];
     int is_station_info_read = 0;
-
+//CHECK STRING MANIPULATION
     while (fgets(line, sizeof(line), file)) {
         if (line[0] == '#') continue; // Skip comments
 
@@ -128,10 +128,24 @@ void send_to_neighbors(char **neighbors, int neighbor_count, const char *message
 }
 
 int main(int argc, char *argv[]) {
-    if (argc < 5) {
+    if (argc < 3) {
         fprintf(stderr, "Usage: %s station-name browser-port query-port neighbor-host:neighbor-port [additional-neighbor-host:neighbor-port ...]\n", argv[0]);
         return 1;
     }
+
+    char timetable_filename[64];
+    snprintf(timetable_filename, sizeof(timetable_filename), "tt-%s", argv[1]);
+
+    printf("Loading timetable from file: %s\n", timetable_filename);
+    Timetable timetable = {.entries = NULL, .numEntries = 0, .capacity = 10};
+    timetable.entries = malloc(timetable.capacity * sizeof(TimetableEntry));
+    if (!timetable.entries) {
+        perror("Failed to allocate initial memory for timetable entries");
+        return 1;
+    }
+
+    read_timetable(timetable_filename, &timetable);
+    print_timetable(&timetable);
 
     int browser_port = atoi(argv[2]);
     int query_port = atoi(argv[3]);
@@ -163,6 +177,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    //TCP listening
     if (listen(tcp_sock, 5) != 0) {
         perror("TCP listen failed");
         close(tcp_sock);
