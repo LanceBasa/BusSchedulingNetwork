@@ -148,10 +148,11 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-4003 4004 localhost:4006 localhost:4010 
-//./king StationC 4005 4006 localhost:4004 localhost:4008 localhost:4010 
-// ./king JunctionE 4009 4010 localhost:4002 localhost:4004 localhost:4006 
 
-//./king JunctionA 4001 4002 localhost:4010 localhost:4012 
-//./king TerminalD 4007 4008 localhost:4006 
-//./king BusportF 4011 4012 localhost:4002 
+//./protocol BusportB 4003 4004 localhost:4006 localhost:4010 
+//./protocol StationC 4005 4006 localhost:4004 localhost:4008 localhost:4010 
+// ./protocol JunctionE 4009 4010 localhost:4002 localhost:4004 localhost:4006 
+
+//./protocol JunctionA 4001 4002 localhost:4010 localhost:4012 
+//./protocol TerminalD 4007 4008 localhost:4006 
+//./protocol BusportF 4011 4012 localhost:4002 
