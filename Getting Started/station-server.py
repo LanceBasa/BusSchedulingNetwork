@@ -375,9 +375,14 @@ def main():
                     #if this is the source station name who got the request from client return string information to client.
                     if station_name == result[1]:
 
+                        output_to_html = ''
+
                         for item in range(1, len(result) - 3,3):
                             print(f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}" )
-                        break
+                            output_to_html += 'You departed from' + result[item] + 'at' result[item+1] 'and arrived at' + result[item+3] + 'at' result[item+2]
+                        #break
+
+                        print(output_to_html)
 
                     
 
