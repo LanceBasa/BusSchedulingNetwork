@@ -1,7 +1,7 @@
 # station-name,longitude,latitude
 JunctionE,115.9800,-31.8900
 # departure-time,route-name,departing-from,arrival-time,arrival-station
-06:03,busE_B,stopE,06:22,BusportB
+06:04,busE_B,stopE,06:22,BusportB
 06:27,busE_C,stopE,06:39,StationC
 06:52,busE_B,stopE,07:13,BusportB
 07:20,busE_A,stopE,08:12,JunctionA
