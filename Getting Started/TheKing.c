@@ -1,10 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include <time.h>
 
 #define MAX_LINE_LENGTH 256
+#define MAX 80
+#define SA struct sockaddr
 
 typedef struct {
     char departureTime[6];
@@ -65,6 +72,10 @@ int read_timetable(const char *filename, Timetable *timetable) {
 }
 
 void print_timetable(const Timetable *timetable) {
+    if (timetable->entries == NULL) {
+        printf("No timetable entries to display.\n");
+        return;
+    }
     printf("Station: %s\n", timetable->stationName);
     printf("Location: %s, %s\n", timetable->longitude, timetable->latitude);
     for (size_t i = 0; i < timetable->numEntries; ++i) {
@@ -85,13 +96,14 @@ void check_and_update_timetable(Timetable *timetable, const char *filename) {
     if (difftime(statbuf.st_mtime, timetable->lastModified) != 0) {
         printf("FILE HAS BEEN MODIFIED\n");
         free(timetable->entries); // Free existing entries
-        timetable->entries = malloc(10 * sizeof(TimetableEntry)); // Reset capacity to 10
-        if (!timetable->entries) {
-            perror("Memory allocation failed for timetable");
-            exit(1);
-        }
+        timetable->entries = NULL;
         timetable->numEntries = 0;
         timetable->capacity = 10; // Reset capacity
+        timetable->entries = malloc(timetable->capacity * sizeof(TimetableEntry));
+        if (!timetable->entries) {
+            perror("Failed to allocate memory for timetable entries");
+            return;
+        }
         if (!read_timetable(filename, timetable)) {
             fprintf(stderr, "Failed to reload the timetable.\n");
             return;
@@ -103,21 +115,54 @@ void check_and_update_timetable(Timetable *timetable, const char *filename) {
     print_timetable(timetable);
 }
 
+void earliest_departure(const Timetable *timetable, const char *destination, const char *current_time) {
+    struct tm tm_current = {0}, tm_depart = {0};
+    if (strptime(current_time, "%H:%M", &tm_current) == NULL) {
+        fprintf(stderr, "Invalid current time format\n");
+        return;
+    }
+    time_t current = mktime(&tm_current);
+    time_t earliest_time = 0;
+    const TimetableEntry *earliest_entry = NULL;
+
+    for (size_t i = 0; i < timetable->numEntries; ++i) {
+        if (strcmp(timetable->entries[i].arrivalStation, destination) == 0) {
+            if (strptime(timetable->entries[i].departureTime, "%H:%M", &tm_depart) == NULL) {
+                fprintf(stderr, "Invalid departure time format in timetable\n");
+                continue;
+            }
+            time_t departure = mktime(&tm_depart);
+
+            // Compare departure time with the given current time
+            if (difftime(departure, current) >= 0 && (!earliest_entry || difftime(departure, earliest_time) < 0)) {
+                earliest_time = departure;
+                earliest_entry = &timetable->entries[i];
+            }
+        }
+    }
+
+    if (earliest_entry) {
+        printf("Earliest departure to %s: %s via %s, arriving at %s\n",
+               destination, earliest_entry->departureTime, earliest_entry->routeName, earliest_entry->arrivalTime);
+    } else {
+        printf("No available departure to %s after %s\n", destination, current_time);
+    }
+}
+
 int main() {
-    const char *filename = "tt-BusportB";
+    char *filename = "tt-BusportB";
     Timetable timetable = { .entries = NULL, .numEntries = 0, .capacity = 10, .lastModified = 0 };
 
-    // Allocate memory for initial timetable entries
+    // Allocate initial memory for timetable entries
     timetable.entries = malloc(timetable.capacity * sizeof(TimetableEntry));
     if (!timetable.entries) {
-        perror("Initial allocation failed");
+        perror("Failed to allocate memory for timetable entries");
         return 1;
     }
 
     // Initial read of the timetable
     if (!read_timetable(filename, &timetable)) {
         fprintf(stderr, "Initial read failed\n");
-        free(timetable.entries);
         return 1;
     }
 
@@ -133,19 +178,41 @@ int main() {
     // Print the timetable initially
     print_timetable(&timetable);
 
-    // Loop to continually prompt the user for checking file modifications
+    // Loop to continually prompt the user for checking file modifications or finding earliest departure
     char input[MAX_LINE_LENGTH];
     while (1) {
-        printf("Do you want to check if it has been modified (yes to check, no to exit)? ");
-        fgets(input, sizeof(input), stdin);
-
-        // Exit the loop if the user does not wish to continue
-        if (strncmp(input, "no", 2) == 0) {
+        printf("\nType 'check' to check if modified, 'find' to find the earliest departure, or 'exit' to exit: ");
+        if (fgets(input, sizeof(input), stdin) == NULL) {
+            printf("\nError reading input. Exiting...\n");
             break;
         }
-        printf("lessgooo");
-        // Check and update the timetable if needed
-        check_and_update_timetable(&timetable, filename);
+
+        if (strncmp(input, "check", 5) == 0) {
+            check_and_update_timetable(&timetable, filename);
+        } else if (strncmp(input, "find", 4) == 0) {
+            char destination[61];
+            char current_time[6];
+
+            printf("Enter the destination station: ");
+            if (fgets(destination, sizeof(destination), stdin) == NULL) {
+                printf("\nError reading destination. Exiting...\n");
+                break;
+            }
+            strtok(destination, "\n"); // Remove newline
+
+            printf("Enter the current time (HH:MM): ");
+            if (fgets(current_time, sizeof(current_time), stdin) == NULL) {
+                printf("\nError reading current time. Exiting...\n");
+                break;
+            }
+            strtok(current_time, "\n"); // Remove newline
+
+            earliest_departure(&timetable, destination, current_time);
+        } else if (strncmp(input, "exit", 4) == 0) {
+            break;
+        } else {
+            printf("Invalid command.\n");
+        }
     }
 
     // Clean up resources before exiting
@@ -153,3 +220,4 @@ int main() {
 
     return 0;
 }
+
