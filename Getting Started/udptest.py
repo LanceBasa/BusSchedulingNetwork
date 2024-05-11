@@ -12,4 +12,4 @@ def send_udp_message(message, host, port):
 
 # Example usage
 if __name__ == '__main__':
-    send_udp_message("Hello UDP Server", 'localhost', 4004)
+    send_udp_message("Hello UDP Server", 'localhost', 4006)
