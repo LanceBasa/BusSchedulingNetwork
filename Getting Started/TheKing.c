@@ -190,6 +190,9 @@ int main() {
         if (strncmp(input, "check", 5) == 0) {
             check_and_update_timetable(&timetable, filename);
         } else if (strncmp(input, "find", 4) == 0) {
+            
+            //checks whether the timetable has been modified while the server is running
+            check_and_update_timetable(&timetable, filename);
             char destination[61];
             char current_time[6];
 
