@@ -212,6 +212,7 @@ def main():
 
     modT= os.path.getmtime(filename)
     path=''
+    full_output = []
 
     time.sleep(3)
     while num_neighbors != len(neighbor_dictionary):
@@ -374,24 +375,38 @@ def main():
 
                     #if this is the source station name who got the request from client return string information to client.
                     if station_name == result[1]:
+                        print(f"\nQuery Success. Going to {result[-1]} from {station_name}")
 
-                        output_to_html = ''
+                        output_to_html =''
+                        
 
-                        for item in range(1, len(result) - 3, 3):
-                            output_to_html += f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}\n" 
+                        for item in range(1, len(result) - 3,4):
+                            # print(f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}" )
+                            # output_to_html += f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}\n" 
+                            departure_from = result[item]
+                            bus_to_catch = result[item+1]
+                            departure_time = result[item+2]
+                            arrival_at = result[item+3]
+                            #arrival_time = result[item +4]
 
+                            output_to_html += f"From {departure_from} arrive at {arrival_at}<br>"
+                            full_output.append(output_to_html)
+                        
                         print(output_to_html)
 
-                        with open('mywebpage2.html', 'r') as file:
-                            response_template = file.read()
+                        # with open('mywebpage2.html', 'r') as file:
+                        #     response_template = file.read()
 
-                        # Replace the placeholder in the HTML template with the dynamic content
-                        response_html = response_template.replace('{{Here_is_your_route}}', output_to_html)
+                        # # Replace the placeholder in the HTML template with the dynamic content
+                        # response_html = response_template.replace('{{Here_is_your_route}}', output_to_html)
+                        for full_output in output_to_html:
+                            # Construct the HTTP response with the complete HTML content
+                            response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(full_output)}\r\n\r\n{full_output}"
+                            client_socket.sendall(response.encode('utf-8'))
 
-                        # Construct the HTTP response with the complete HTML content
-                        response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
-                        client_socket.sendall(response.encode('utf-8'))
-
+                    else:
+                        print(f"\nReceived backtrack message {backPath}")
+                        backtrack(backPath)
                     
 
 if __name__ == "__main__":
