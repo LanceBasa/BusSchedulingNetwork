@@ -1,29 +1,6 @@
 <html>
 <head>
     <script>
-        console.log('Script loaded and executed.');
-
-        function getCurrentTime() {
-          var now = new Date();
-          var hours = now.getHours()
-          var minutes = now.getMinutes()
-          var currentTimeString = hours%12 + ':' + minutes;
-          return currentTimeString;
-        }
-        
-        // Update the current time every second
-        function updateTime() {
-          var currentTimeElement = document.getElementById('current-time');
-          currentTimeElement.textContent = getCurrentTime();
-        }
-        
-        // Call updateTime function every second
-        setInterval(updateTime, 1000);
-        
-        console.log('Script loaded and executed.');
-    
-        updateTime()    
-
         function setFormAction() {
           var selectedValue = document.getElementById("from").value;
           document.getElementById("myForm").action = selectedValue;
@@ -45,7 +22,7 @@ div.box {
 </style>
 
 <div class="box">
-    <h3>&nbsp;Current time: <span id="current-time"></span></h3>
+    <h3>&nbsp;Hello, Welcome to Transperth Terminal!</h3>
 </div>
 
 <div class="box">

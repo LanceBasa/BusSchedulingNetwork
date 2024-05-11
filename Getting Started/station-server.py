@@ -378,8 +378,8 @@ def main():
                         output_to_html = ''
 
                         for item in range(1, len(result) - 3,3):
-                            print(f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}" )
-                            output_to_html += 'You departed from' + result[item] + 'at' result[item+1] 'and arrived at' + result[item+3] + 'at' result[item+2]
+                            # print(f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}" )
+                            output_to_html += f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}\n" 
                         #break
 
                         print(output_to_html)
