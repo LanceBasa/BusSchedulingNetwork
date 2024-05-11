@@ -191,6 +191,7 @@ def ping_neighbours(neighbors,station_name,udp_port,udp_socket):
                 print(f"Received UDP message from {client_address}: {sName}:{portNum}")
                 if portNum not in neighbor_dictionary.keys():
                     neighbor_dictionary[portNum] = sName
+                    print(neighbor_dictionary)
         # print(len(neighbor_dictionary), num_neighbors)
         time.sleep(1)
     return neighbor_dictionary
@@ -388,7 +389,7 @@ def main():
                         for item in range(1, len(result) - 3,4):
                             # print(f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}" )
                             # output_to_html += f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}\n" 
-                            output_to_html += f"\tFrom {result[item]} catch {result[item+1]} leaving at {result[item+2]} and arrived at {result[item+4]} at {result[item+3]}\n" 
+                            output_to_html += f"\tFrom {result[item]} catch {result[item+1]} leaving at {result[item+2]} and arrived at {result[item+4]} at {result[item+3]}<br>" 
                         
                         print(output_to_html)
 
