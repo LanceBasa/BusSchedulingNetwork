@@ -10,12 +10,13 @@
 #include <time.h>
 
 #define MAX_LINE_LENGTH 256
-#define MAX 80
+#define MAX 1024
 #define SA struct sockaddr
-
+#define TIMEOUT_SECONDS 12
+#define RETRY_INTERVAL_SECONDS 1
+#define MAX_RETRIES 10
 
 time_t last_modified = 0;
-
 
 typedef struct {
     char departureTime[6];
@@ -34,6 +35,80 @@ typedef struct {
     size_t capacity;
 } Timetable;
 
+typedef struct Neighbor {
+    char stationName[32];
+    int udpPort;
+    struct Neighbor *next;
+} Neighbor;
+
+typedef struct {
+    Neighbor *head;
+    int count;  // total count of neighbors added
+} NeighborList;
+
+void send_ping_to_neighbors(int udp_sock, char **neighbors, int neighbor_count, const char *myStationName, int myUdpPort) {
+    struct sockaddr_in neighbor_addr;
+    char message[256];
+    snprintf(message, sizeof(message), "%s:%d", myStationName, myUdpPort);
+
+    for (int i = 0; i < neighbor_count; ++i) {
+        memset(&neighbor_addr, 0, sizeof(neighbor_addr));
+        neighbor_addr.sin_family = AF_INET;
+
+        char host[256];
+        int port;
+        sscanf(neighbors[i], "%255[^:]:%d", host, &port);
+        inet_pton(AF_INET, host, &neighbor_addr.sin_addr);
+        neighbor_addr.sin_port = htons(port);
+
+        sendto(udp_sock, message, strlen(message), 0, (struct sockaddr *)&neighbor_addr, sizeof(neighbor_addr));
+    }
+}
+
+void add_neighbor(NeighborList *list, const char *stationName, int udpPort) {
+    Neighbor *newNeighbor = malloc(sizeof(Neighbor));
+    strcpy(newNeighbor->stationName, stationName);
+    newNeighbor->udpPort = udpPort;
+    newNeighbor->next = list->head;
+    list->head = newNeighbor;
+    list->count++;
+}
+
+void handle_incoming_pings(int udp_sock, NeighborList *list) {
+    struct sockaddr_in cliaddr;
+    socklen_t len = sizeof(cliaddr);
+    char buffer[256];
+
+    int n = recvfrom(udp_sock, buffer, sizeof(buffer) - 1, 0, (struct sockaddr *)&cliaddr, &len);
+    if (n > 0) {
+        buffer[n] = '\0';
+        char stationName[32];
+        int port;
+        sscanf(buffer, "%31[^:]:%d", stationName, &port);
+
+        // Avoid adding duplicates
+        Neighbor *current = list->head;
+        while (current != NULL) {
+            if (strcmp(current->stationName, stationName) == 0) {
+                return; // Already added
+            }
+            current = current->next;
+        }
+
+        // Add to neighbor list
+        add_neighbor(list, stationName, port);
+    }
+}
+
+void print_neighbors(const NeighborList *list) {
+    printf("List of neighboring stations:\n");
+    Neighbor *current = list->head;
+    while (current != NULL) {
+        printf("Station: %s, UDP Port: %d\n", current->stationName, current->udpPort);
+        current = current->next;
+    }
+}
+
 void add_timetable_entry(Timetable *timetable, TimetableEntry entry) {
     if (timetable->numEntries >= timetable->capacity) {
         timetable->capacity *= 2;
@@ -46,18 +121,18 @@ void add_timetable_entry(Timetable *timetable, TimetableEntry entry) {
     timetable->entries[timetable->numEntries++] = entry;
 }
 
-void read_timetable(const char *filename, Timetable *timetable) {
+int read_timetable(const char *filename, Timetable *timetable) {
     FILE *file = fopen(filename, "r");
     if (!file) {
         perror("Error opening file");
-        exit(1);
+        return 0;
     }
 
     char line[MAX_LINE_LENGTH];
     int is_station_info_read = 0;
 
     while (fgets(line, sizeof(line), file)) {
-        if (line[0] == '#') continue; // Skip comments
+        if (line[0] == '#') continue;
 
         if (!is_station_info_read) {
             sscanf(line, "%31[^,],%15[^,],%15s", timetable->stationName, timetable->longitude, timetable->latitude);
@@ -66,77 +141,52 @@ void read_timetable(const char *filename, Timetable *timetable) {
         }
 
         TimetableEntry entry;
-        if (sscanf(line, "%5[^,],%15[^,],%60[^,],%5[^,],%60s",
-                   entry.departureTime, entry.routeName, entry.departingFrom,
+        if (sscanf(line, "%5[^,],%15[^,],%60[^,],%5[^,],%60s", entry.departureTime, entry.routeName, entry.departingFrom,
                    entry.arrivalTime, entry.arrivalStation) == 5) {
             add_timetable_entry(timetable, entry);
         }
     }
 
     fclose(file);
+    return 1;
 }
 
 void print_timetable(const Timetable *timetable) {
     printf("Station: %s\n", timetable->stationName);
     printf("Location: %s, %s\n", timetable->longitude, timetable->latitude);
     for (size_t i = 0; i < timetable->numEntries; ++i) {
-        printf("Departure: %s, Route: %s, From: %s, Arrival: %s, To: %s\n",
-               timetable->entries[i].departureTime, timetable->entries[i].routeName,
-               timetable->entries[i].departingFrom, timetable->entries[i].arrivalTime,
+        printf("Departure: %s, Route: %s, From: %s, Arrival: %s, To: %s\n", timetable->entries[i].departureTime,
+               timetable->entries[i].routeName, timetable->entries[i].departingFrom, timetable->entries[i].arrivalTime,
                timetable->entries[i].arrivalStation);
     }
 }
 
-void extract_station_name(const char *buffer, char *station_name) {
-    const char *to_marker = "GET /?to=";
-    const char *http_marker = " HTTP/1.1";
-    
-    const char *start_pos = strstr(buffer, to_marker);
-    start_pos += strlen(to_marker);
-
-    const char *end_pos = strstr(start_pos, http_marker);
-
-    size_t station_len = end_pos - start_pos;
-    strncpy(station_name, start_pos, station_len);
-    station_name[station_len] = '\0'; // Null-terminate the station name
-}
-
-// CODE TO CHECK LAST MODIFIED AND RELOAD
 void check_and_reload_timetable(Timetable *timetable, const char *filename) {
     struct stat statbuf;
 
-    // Get the last modified time of the file
     if (stat(filename, &statbuf) == -1) {
         perror("Failed to get file status");
         return;
     }
 
-    // Compare the last modified time with the stored time
     if (difftime(statbuf.st_mtime, last_modified) != 0) {
         printf("Timetable file has been modified. Reloading...\n");
-        free(timetable->entries);  // Free existing entries
+        free(timetable->entries);
         timetable->entries = NULL;
         timetable->numEntries = 0;
-        timetable->capacity = 10;  // Reset capacity if dynamic resizing is used
+        timetable->capacity = 10;
         timetable->entries = malloc(timetable->capacity * sizeof(TimetableEntry));
 
         read_timetable(filename, timetable);
-        //print_timetable(timetable); // Optionally print the loaded timetable
-
-        last_modified = statbuf.st_mtime;  // Update the last modified global variable
+        last_modified = statbuf.st_mtime;
     }
 }
 
-
-// CODE TO FIND THE EARLIEST TIME
-
-// Helper function to compare time strings
 int compare_time(const char *time1, const char *time2) {
     struct tm tm1, tm2;
     strptime(time1, "%H:%M", &tm1);
     strptime(time2, "%H:%M", &tm2);
 
-    // Convert struct tm to time_t and compare
     time_t t1 = mktime(&tm1);
     time_t t2 = mktime(&tm2);
 
@@ -145,7 +195,6 @@ int compare_time(const char *time1, const char *time2) {
     return 0;
 }
 
-// Function to find the earliest transport option after a specified time
 TimetableEntry* earliest_transport(Timetable *timetable, const char *destination_station, const char *time) {
     TimetableEntry *earliest = NULL;
     for (size_t i = 0; i < timetable->numEntries; i++) {
@@ -158,38 +207,52 @@ TimetableEntry* earliest_transport(Timetable *timetable, const char *destination
     return earliest;
 }
 
+void extract_station_name(const char *buffer, char *station_name) {
+    const char *to_marker = "GET /?to=";
+    const char *http_marker = " HTTP/1.1";
 
+    const char *start_pos = strstr(buffer, to_marker);
+    start_pos += strlen(to_marker);
 
-void send_to_neighbors(char **neighbors, int neighbor_count, const char *message) {
-    struct sockaddr_in neighbor_addr;
-    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockfd < 0) {
-        perror("UDP socket creation failed");
-        return;
-    }
+    const char *end_pos = strstr(start_pos, http_marker);
 
-    memset(&neighbor_addr, 0, sizeof(neighbor_addr));
-    neighbor_addr.sin_family = AF_INET;
+    size_t station_len = end_pos - start_pos;
+    strncpy(station_name, start_pos, station_len);
+    station_name[station_len] = '\0';
+}
 
-    // Loop through all neighbors
-    for (int i = 0; i < neighbor_count; ++i) {
-        char host[256];
-        int port;
+int wait_for_neighbors(int udp_sock, NeighborList *list, int expected_count, int timeout_seconds) {
+    fd_set readfds;
+    struct timeval timeout;
+    int remaining_count = expected_count;
 
-        // Extract host and port
-        if (sscanf(neighbors[i], "%255[^:]:%d", host, &port) != 2) {
-            fprintf(stderr, "Invalid neighbor address: %s\n", neighbors[i]);
-            continue;
+    while (remaining_count > 0) {
+        FD_ZERO(&readfds);
+        FD_SET(udp_sock, &readfds);
+
+        timeout.tv_sec = timeout_seconds;
+        timeout.tv_usec = 0;
+
+        int activity = select(udp_sock + 1, &readfds, NULL, NULL, &timeout);
+        if (activity < 0) {
+            perror("Select error while waiting for neighbors");
+            break;
         }
 
-        neighbor_addr.sin_port = htons(port);
-        inet_pton(AF_INET, host, &neighbor_addr.sin_addr);
+        if (activity == 0) {
+            printf("Timeout reached while waiting for neighbors.\n");
+            break;
+        }
 
-        // Send message to current neighbor
-        sendto(sockfd, message, strlen(message), 0, (SA *)&neighbor_addr, sizeof(neighbor_addr));
+        if (FD_ISSET(udp_sock, &readfds)) {
+            handle_incoming_pings(udp_sock, list);
+            if (list->count >= expected_count) {
+                break;
+            }
+        }
     }
 
-    close(sockfd);
+    return list->count;
 }
 
 int main(int argc, char *argv[]) {
@@ -198,139 +261,128 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    //TIMETABLE initialization
     char timetable_filename[64];
     snprintf(timetable_filename, sizeof(timetable_filename), "tt-%s", argv[1]);
 
-    printf("Loading timetable from file: %s\n", timetable_filename);
-    Timetable timetable = {.entries = NULL, .numEntries = 0, .capacity = 10};
-    timetable.entries = malloc(timetable.capacity * sizeof(TimetableEntry));
-    if (!timetable.entries) {
-        perror("Failed to allocate initial memory for timetable entries");
+    Timetable timetable = {
+        .entries = malloc(10 * sizeof(TimetableEntry)),
+        .numEntries = 0,
+        .capacity = 10
+    };
+    if (!read_timetable(timetable_filename, &timetable)) {
+        fprintf(stderr, "Error: Could not read timetable from %s\n", timetable_filename);
         return 1;
     }
+    last_modified = time(NULL);
 
-    read_timetable(timetable_filename, &timetable);
-    print_timetable(&timetable);
+    NeighborList neighborList = { .head = NULL, .count = 0 };
 
-    int browser_port = atoi(argv[2]);
-    int query_port = atoi(argv[3]);
-    int tcp_sock, udp_sock;
-    struct sockaddr_in servaddr, cliaddr;
-    socklen_t cliaddr_len = sizeof(cliaddr);
-    int maxfd;
-    char buffer[MAX];
+    int tcp_port = atoi(argv[2]);
+    int udp_port = atoi(argv[3]);
+    int num_neighbors = argc - 4;
+    char **neighbors = argv + 4;
 
-    // Neighbor addresses
-    char **neighbors = &argv[4];
-    int neighbor_count = argc - 4;
-
-    // Setup TCP server
-    tcp_sock = socket(AF_INET, SOCK_STREAM, 0);
+    // Create and bind TCP socket
+    int tcp_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (tcp_sock == -1) {
-        perror("TCP socket creation failed");
-        exit(EXIT_FAILURE);
+        perror("Failed to create TCP socket");
+        exit(1);
     }
 
-    memset(&servaddr, 0, sizeof(servaddr));
+    struct sockaddr_in servaddr = {0};
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port = htons(browser_port);
+    servaddr.sin_port = htons(tcp_port);
 
-    if (bind(tcp_sock, (SA *)&servaddr, sizeof(servaddr)) != 0) {
-        perror("TCP socket bind failed");
+    if (bind(tcp_sock, (struct sockaddr *)&servaddr, sizeof(servaddr)) != 0) {
+        perror("TCP bind failed");
         close(tcp_sock);
-        exit(EXIT_FAILURE);
+        exit(1);
     }
 
-    //TCP listening
     if (listen(tcp_sock, 5) != 0) {
         perror("TCP listen failed");
         close(tcp_sock);
-        exit(EXIT_FAILURE);
+        exit(1);
     }
 
-    // Setup UDP server
-    udp_sock = socket(AF_INET, SOCK_DGRAM, 0);
+    // Create and bind UDP socket
+    int udp_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (udp_sock == -1) {
-        perror("UDP socket creation failed");
+        perror("Failed to create UDP socket");
         close(tcp_sock);
-        exit(EXIT_FAILURE);
+        exit(1);
     }
 
-    servaddr.sin_port = htons(query_port);
-    if (bind(udp_sock, (SA *)&servaddr, sizeof(servaddr)) != 0) {
-        perror("UDP socket bind failed");
+    struct sockaddr_in udpaddr = {0};
+    udpaddr.sin_family = AF_INET;
+    udpaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    udpaddr.sin_port = htons(udp_port);
+
+    if (bind(udp_sock, (struct sockaddr *)&udpaddr, sizeof(udpaddr)) != 0) {
+        perror("UDP bind failed");
         close(tcp_sock);
         close(udp_sock);
-        exit(EXIT_FAILURE);
+        exit(1);
     }
 
-    // Prepare for select
-    fd_set readfds;
-    maxfd = tcp_sock > udp_sock ? tcp_sock : udp_sock;
+    // Retry pinging neighbors up to a maximum number of attempts
+    for (int retry = 0; retry < MAX_RETRIES; retry++) {
+        send_ping_to_neighbors(udp_sock, neighbors, num_neighbors, argv[1], udp_port);
+        sleep(RETRY_INTERVAL_SECONDS);
+    }
+
+    printf("Waiting for pings from neighbors...\n");
+    wait_for_neighbors(udp_sock, &neighborList, num_neighbors, TIMEOUT_SECONDS);
+    print_neighbors(&neighborList);
 
     while (1) {
-        FD_ZERO(&readfds);
-        FD_SET(tcp_sock, &readfds);
-        FD_SET(udp_sock, &readfds);
-
-        int activity = select(maxfd + 1, &readfds, NULL, NULL, NULL);
-        if (activity < 0) {
-            perror("Select error");
-            break;
+        struct sockaddr_in cliaddr;
+        socklen_t clilen = sizeof(cliaddr);
+        int client_fd = accept(tcp_sock, (struct sockaddr *)&cliaddr, &clilen);
+        if (client_fd < 0) {
+            perror("Server accept failed");
+            continue;
         }
 
-        if (FD_ISSET(tcp_sock, &readfds)) {
-            int connfd = accept(tcp_sock, (SA *)&cliaddr, &cliaddr_len);
-            if (connfd < 0) {
-                perror("TCP accept failed");
-                continue;
-            }
+        char buffer[MAX] = {0};
+        read(client_fd, buffer, sizeof(buffer));
 
-            // Handle TCP client
-            memset(buffer, 0, sizeof(buffer));
-            
-            if (read(connfd, buffer, sizeof(buffer)) > 0) {
+        char destination_station[32];
+        extract_station_name(buffer, destination_station);
 
-                check_and_reload_timetable(&timetable, timetable_filename);
-
-
-                char station_name[256];
-                extract_station_name(buffer, station_name);
-                printf("Destination station name: %s\n", station_name);
-
-                // Send the extracted station name to all neighbors
-                send_to_neighbors(neighbors, neighbor_count, station_name);
-
-                // Respond to the web
-                char response[] = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nHello, world!\n";
-                write(connfd, response, strlen(response));
-            }
-
-            close(connfd);
+        TimetableEntry *entry = earliest_transport(&timetable, destination_station, "00:00");
+        if (entry) {
+            snprintf(buffer, sizeof(buffer),
+                     "HTTP/1.1 200 OK\nContent-Type: text/html\n\n"
+                     "<html><body>"
+                     "<h2>Next Transport to %s</h2>"
+                     "<p>Departure: %s</p>"
+                     "<p>Route: %s</p>"
+                     "<p>From: %s</p>"
+                     "<p>Arrival: %s</p>"
+                     "</body></html>",
+                     destination_station, entry->departureTime, entry->routeName, entry->departingFrom, entry->arrivalTime);
+        } else {
+            snprintf(buffer, sizeof(buffer),
+                     "HTTP/1.1 404 Not Found\nContent-Type: text/html\n\n"
+                     "<html><body><h2>No transport found to %s</h2></body></html>", destination_station);
         }
 
-        if (FD_ISSET(udp_sock, &readfds)) {
-            memset(buffer, 0, sizeof(buffer));
-            int n = recvfrom(udp_sock, buffer, sizeof(buffer), 0, (SA *)&cliaddr, &cliaddr_len);
-            if (n > 0) {
+        write(client_fd, buffer, strlen(buffer));
+        close(client_fd);
 
-                check_and_reload_timetable(&timetable, timetable_filename);
-                buffer[n] = '\0';
-                printf("%s\n", buffer);
-            } else if (n < 0) {
-                perror("UDP recvfrom failed");
-            }
-        }
+        check_and_reload_timetable(&timetable, timetable_filename);
     }
 
-    close(tcp_sock);
-    close(udp_sock);
     return 0;
 }
 
 
-//./stationS BusportB 4003 5003 localhost:5004 localhost:5005
-//./stationS BusportF 4004 5004 localhost:5003 localhost:5005
-//./stationS JunctionA 4005 5005 localhost:5003 localhost:5004
+//./stationS BusportB 4003 4004 localhost:4006 localhost:4010 
+//./stationS StationC 4005 4006 localhost:4004 localhost:4008 localhost:4010 
+// ./stationS JunctionE 4009 4010 localhost:4002 localhost:4004 localhost:4006 
+
+//./stationS JunctionA 4001 4002 localhost:4010 localhost:4012 
+//./stationS TerminalD 4007 4008 localhost:4006 
+//./stationS BusportF 4011 4012 localhost:4002 
