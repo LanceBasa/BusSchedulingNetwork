@@ -244,6 +244,8 @@ def main():
 
     print("Timetable Loaded")
     print(f"I am {station_name} my neighbours are{neighbor_dictionary}")
+    
+    output_to_html =''
 
     while True:
 
@@ -377,10 +379,11 @@ def main():
                     backtrack_1 = result[-1].split("-")
                     result[-1] = backtrack_1[0]
 
+
                     #if this is the source station name who got the request from client return string information to client.
                     if station_name == result[1]:
                         print(f"\nQuery Success. Going to {result[-1]} from {station_name}")
-                        output_to_html =''
+                        
 
                         for item in range(1, len(result) - 3,4):
                             # print(f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}" )
@@ -388,9 +391,6 @@ def main():
                             output_to_html += f"\tFrom {result[item]} catch {result[item+1]} leaving at {result[item+2]} and arrived at {result[item+4]} at {result[item+3]}\n" 
                         
                         print(output_to_html)
-                    else:
-                        print(f"\nReceived backtrack message {backPath}")
-                        backtrack(backPath)
 
                         with open('mywebpage2.html', 'r') as file:
                             response_template = file.read()
@@ -401,6 +401,12 @@ def main():
                         # Construct the HTTP response with the complete HTML content
                         response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
                         client_socket.sendall(response.encode('utf-8'))
+
+                    else:
+                        print(f"\nReceived backtrack message {backPath}")
+                        backtrack(backPath)
+
+                        
 
                     
 
