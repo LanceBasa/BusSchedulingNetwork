@@ -104,7 +104,7 @@ def loadfile(filename):
                 datarow = line.strip().split(',')
                 timetable.append({
                     'departTime':datarow[0],
-                    'routeName': datarow[1],
+                    'busNumber': datarow[1],
                     'departFrom': datarow[2],
                     'arriveTime': datarow[3],
                     'arriveAt': datarow[4]
@@ -171,13 +171,38 @@ def backtrack(path):
         previous_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  
         previous_socket.sendto(backtrackStr.encode('utf-8'), ('localhost', int(key)))
 
+def ping_neighbours(neighbors,station_name,udp_port,udp_socket):
+    time.sleep(2)
+    for i in range(10):
+    # while num_neighbors != len(neighbor_dictionary):
+        # Use select to wait for I/O events
+
+        if neighbors:
+            for neighbor in neighbors:
+                neighbor_host, neighbor_port = neighbor.split(':')
+                neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sendInfo = "!"+station_name+":"+ str(udp_port)
+                neighbor_socket.sendto(sendInfo.encode('utf-8'), (neighbor_host, int(neighbor_port)))
+                neighbor_socket.close()
+
+            data, client_address = udp_socket.recvfrom(1024)
+            if data:
+                sName,portNum = data.decode('utf-8')[1:].split(':')
+                print(f"Received UDP message from {client_address}: {sName}:{portNum}")
+                if portNum not in neighbor_dictionary.keys():
+                    neighbor_dictionary[portNum] = sName
+        # print(len(neighbor_dictionary), num_neighbors)
+        time.sleep(1)
+    return neighbor_dictionary
+
         
 
 
-def extract_non_numbers(string):
+def getStations(string):
     parts = string.split(';')
-    non_numbers = [part for part in parts if not any(char.isdigit() or char == ':' for char in part)]
-    return non_numbers
+    del parts[0]
+    stations_list = [parts[i] for i in range(0, len(parts), 4)]
+    return stations_list
 
 
 
@@ -213,27 +238,8 @@ def main():
     modT= os.path.getmtime(filename)
     path=''
 
-    # time.sleep(3)
-    while num_neighbors != len(neighbor_dictionary):
-        # Use select to wait for I/O events
+    neighbor_dictionary = ping_neighbours(neighbors,station_name,udp_port,udp_socket)
 
-        if neighbors:
-            for neighbor in neighbors:
-                neighbor_host, neighbor_port = neighbor.split(':')
-                neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                sendInfo = "!"+station_name+":"+ str(udp_port)
-                neighbor_socket.sendto(sendInfo.encode('utf-8'), (neighbor_host, int(neighbor_port)))
-                neighbor_socket.close()
-
-            data, client_address = udp_socket.recvfrom(1024)
-            if data:
-                sName,portNum = data.decode('utf-8')[1:].split(':')
-                print(f"Received UDP message from {client_address}: {sName}:{portNum}")
-                if portNum not in neighbor_dictionary.keys():
-                    neighbor_dictionary[portNum] = sName
-        # print(len(neighbor_dictionary), num_neighbors)
-        time.sleep(2)
-    
     os.system('clear') #NOTE REMOVE LATER
 
     print("Timetable Loaded")
@@ -299,7 +305,7 @@ def main():
 
                                 tt_index = get_ttEntry(neighbor_name,earliestPaths)
                                 earliestRide = earliestPaths[tt_index]
-                                path += busport + ';' + station_name + ';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime']
+                                path += busport + ';' + station_name +';'+ earliestRide['busNumber']+';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime']
 
 
                                 if neighbor_port not in path_taken:
@@ -327,7 +333,8 @@ def main():
                     if station_name == final_destination:
                         print(f"\nQuery Success!\tCurrent time:{currentTime}\nPath taken:{path}\nNow returning query to source!\n")
                         path += ';'+ station_name
-                        result = extract_non_numbers(path)[1:]
+                        result = getStations(path)[:]
+                        print(result)
                         path = "~" + path  
                         for item in result:
                             path += "-" + item
@@ -352,7 +359,7 @@ def main():
                                 tt_index = get_ttEntry(neighbor_name,earliestPaths)
                                 earliestRide = earliestPaths[tt_index]
                                 # print(f"Earliest path to {neighbor_name}: {earliestRide}")
-                                pathUpdate = path + ';' + station_name + ';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime'] 
+                                pathUpdate = path + ';' + station_name +';'+ earliestRide['busNumber']+ ';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime'] 
                             else: print(f"no more bus/train leaving at this hour{currentTime}")
 
                             if neighbor_name not in path_taken:         # to avoid looping, only send to neighbours that have not been visited.
@@ -364,8 +371,6 @@ def main():
                 # This is to identify the incoming data as returning data
                 elif dataIdentifyer == '~':
                     backPath = data.decode('utf-8')
-                    print(f"\nReceived backtrack message {backPath}")
-                    backtrack(backPath)
 
                     
                     result = backPath.split(";") #
@@ -374,15 +379,18 @@ def main():
 
                     #if this is the source station name who got the request from client return string information to client.
                     if station_name == result[1]:
+                        print(f"\nQuery Success. Going to {result[-1]} from {station_name}")
+                        output_to_html =''
 
-                        output_to_html = ''
-
-                        for item in range(1, len(result) - 3,3):
+                        for item in range(1, len(result) - 3,4):
                             # print(f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}" )
-                            output_to_html += f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}\n" 
-                        #break
-
+                            # output_to_html += f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}\n" 
+                            output_to_html += f"\tFrom {result[item]} catch {result[item+1]} leaving at {result[item+2]} and arrived at {result[item+4]} at {result[item+3]}\n" 
+                        
                         print(output_to_html)
+                    else:
+                        print(f"\nReceived backtrack message {backPath}")
+                        backtrack(backPath)
 
                     
 
