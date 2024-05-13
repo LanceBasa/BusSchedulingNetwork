@@ -412,7 +412,7 @@ def main():
                         # Construct the HTTP response with the complete HTML content
                         response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
                         client_socket.sendall(response.encode('utf-8'))
-                        client_socket.close()
+                        # client_socket.close()
                     else:
                         print(f"\nReceived backtrack message {backPath}")
                         backtrack(backPath)
