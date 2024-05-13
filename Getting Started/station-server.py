@@ -40,7 +40,7 @@ neighbor_dictionary={}
 
 def tcp_server(tcp_port):
     # Define the host
-    host = 'localhost'  # Listen on localhost
+    host = '10.135.123.132'  # Listen on localhost
     
     # Create a TCP socket object
     tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -62,7 +62,7 @@ def tcp_server(tcp_port):
 
 def udp_server(udp_port, neighbors=None):
     # Define the host
-    host = 'localhost'  # Listen on localhost
+    host = '10.135.123.132'  # Listen on localhost
     
     # Create a UDP socket object
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -170,30 +170,33 @@ def backtrack(path):
 
         key = search_by_value(neighbor_dictionary, previous_station)
         previous_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  
-        previous_socket.sendto(backtrackStr.encode('utf-8'), ('localhost', int(key)))
+        previous_socket.sendto(backtrackStr.encode('utf-8'), (neighbor_dictionary[key][0], int(key)))
+        previous_socket.close()
 
-def ping_neighbours(neighbors,station_name,udp_port,udp_socket):
+def ping_neighbours(neighbors, station_name, udp_port, udp_socket):
+    neighbor_hosts = {}  # Dictionary to store neighbor hosts by their ports
+    for neighbor in neighbors:
+        neighbor_host, neighbor_port = neighbor.split(':')
+        neighbor_hosts[neighbor_port] = neighbor_host  # Store the neighbor's host by their port
+
     for i in range(10):
-    # while num_neighbors != len(neighbor_dictionary):
-        # Use select to wait for I/O events
-
         if neighbors:
-            for neighbor in neighbors:
-                neighbor_host, neighbor_port = neighbor.split(':')
+            for neighbor_port, neighbor_host in neighbor_hosts.items():
                 neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                sendInfo = "!"+station_name+":"+ str(udp_port)
-                neighbor_socket.sendto(sendInfo.encode('utf-8'), (neighbor_host, int(neighbor_port)))
+                send_info = "!" + station_name + ":" + str(udp_port)
+                neighbor_socket.sendto(send_info.encode('utf-8'), (neighbor_host, int(neighbor_port)))
                 neighbor_socket.close()
 
             data, client_address = udp_socket.recvfrom(1024)
             if data:
-                sName,portNum = data.decode('utf-8')[1:].split(':')
+                sName, portNum = data.decode('utf-8')[1:].split(':')
                 print(f"Received UDP message from {client_address}: {sName}:{portNum}")
-                if portNum not in neighbor_dictionary.keys():
-                    neighbor_dictionary[portNum] = [neighbor_host,sName]
+
+                # Use the neighbor_host from the dictionary based on the portNum
+                if portNum not in neighbor_dictionary.keys() and portNum in neighbor_hosts:
+                    neighbor_dictionary[portNum] = [neighbor_hosts[portNum], sName]
             time.sleep(1)
 
-        # print(len(neighbor_dictionary), num_neighbors)
     return neighbor_dictionary
 
         
@@ -247,6 +250,7 @@ def main():
     print("Timetable Loaded")
     print(f"I am {station_name} my neighbours are{neighbor_dictionary}")
 
+
     while True:
 
 
@@ -261,6 +265,8 @@ def main():
                 # Handle TCP connection
                 client_socket, client_address = tcp_socket.accept()
                 print(f"TCP connection established with {client_address}")
+                print(f"TCP connectionsadasd established with {client_address}")
+                print(f"TCP connectisadasdasdason established with {client_address}")
 
                 # Receive data from the client
                 data = client_socket.recv(1024)
@@ -294,7 +300,7 @@ def main():
                         
 
                         # path += busport + ';' + station_name
-                        path_taken = path.split(';')[1:]
+                        path_taken =' '
                         # Send string to neighbours
                         if neighbor_dictionary:
                             for neighbor in neighbor_dictionary:
@@ -314,10 +320,11 @@ def main():
                                     neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                                     neighbor_socket.sendto(pathUpdate.encode('utf-8'), (neighbor_host, int(neighbor)))
                                     neighbor_socket.close()
-
+                # client_socket.close()
                 # client_socket.close()
                 
             elif sock == udp_socket:
+                
 
                 # Handle UDP message
                 data, client_address = udp_socket.recvfrom(1024)
@@ -369,6 +376,9 @@ def main():
                                 neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                                 neighbor_socket.sendto(pathUpdate.encode('utf-8'), (neighbor_host, int(neighbor)))
                                 neighbor_socket.close()
+                    # client_socket.close()
+                
+
 
                 # This is to identify the incoming data as returning data
                 elif dataIdentifyer == '~':
@@ -402,10 +412,15 @@ def main():
                         # Construct the HTTP response with the complete HTML content
                         response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
                         client_socket.sendall(response.encode('utf-8'))
-
+                        client_socket.close()
                     else:
                         print(f"\nReceived backtrack message {backPath}")
                         backtrack(backPath)
+
+            
+
+
+            
 
                         
 
