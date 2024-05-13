@@ -11,6 +11,8 @@
 #define MAX_NEIGHBORS 10
 #define PING_DURATION 10 // Duration to send pings
 
+const char* ip_address = "127.0.0.1"; 
+
 typedef struct {
     char station_name[256];
     int udp_port;
@@ -50,7 +52,7 @@ int setup_tcp_socket(int port) {
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_addr.s_addr = inet_addr(ip_address);
     addr.sin_port = htons(port);
 
     if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
@@ -73,7 +75,7 @@ int setup_udp_socket(int port) {
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_addr.s_addr = inet_addr(ip_address);
     addr.sin_port = htons(port);
 
     if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
