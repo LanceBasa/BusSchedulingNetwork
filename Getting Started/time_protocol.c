@@ -28,6 +28,7 @@
 #define MAX_LINE_LENGTH 256
 #define MAX 80
 #define SA struct sockaddr
+#define MAX_FILENAME_LENGTH 61// Adjust as needed
 
 typedef struct {
     char station_name[256];
@@ -354,14 +355,23 @@ char* extract_station_name_from_http_request(char *http_request) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 5) {
+    if (argc < 3) { //changed this to 3 hopefully no seg fault
         fprintf(stderr, "Usage: %s station-name tcp-port udp-port neighbor1 [neighbor2 ...]\n", argv[0]);
         return 1;
     }
+      // Extract station name from command line arguments
+    char* stationName = argv[1];
+
+    // Construct dynamic filename
+    char filename[MAX_FILENAME_LENGTH];
+    snprintf(filename, MAX_FILENAME_LENGTH, "tt-%s", stationName);
+
+    printf("Dynamic filename: %s\n", filename);
 
 
 //-----------------------------timetable main added------------
-    char *filename = "tt-BusportB";
+
+
     Timetable timetable = { .entries = NULL, .numEntries = 0, .capacity = 10, .lastModified = 0 };
 
     // Allocate initial memory for timetable entries
@@ -387,7 +397,7 @@ int main(int argc, char* argv[]) {
     timetable.lastModified = statbuf.st_mtime;
 
     // Print the timetable initially
-    print_timetable(&timetable);
+    //print_timetable(&timetable);
 
     
 //----------------------------------done...........................
