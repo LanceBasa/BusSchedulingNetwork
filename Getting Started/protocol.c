@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -10,8 +9,8 @@
 
 #define BUFFER_SIZE 1024
 #define MAX_NEIGHBORS 10
+#define PING_DURATION 10 // Duration to send pings
 
-// Structure for storing neighbor information
 typedef struct {
     char station_name[256];
     int udp_port;
@@ -20,7 +19,6 @@ typedef struct {
 Neighbor neighbors[MAX_NEIGHBORS];
 int neighbor_count = 0;
 
-// Add a neighbor to the list if not already present
 void add_neighbor(const char* station_name, int udp_port) {
     for (int i = 0; i < neighbor_count; i++) {
         if (strcmp(neighbors[i].station_name, station_name) == 0 && neighbors[i].udp_port == udp_port) {
@@ -31,10 +29,10 @@ void add_neighbor(const char* station_name, int udp_port) {
         strncpy(neighbors[neighbor_count].station_name, station_name, sizeof(neighbors[neighbor_count].station_name) - 1);
         neighbors[neighbor_count].udp_port = udp_port;
         neighbor_count++;
+        print_neighbors(); // Print after adding a new neighbor
     }
 }
 
-// Print neighboring stations
 void print_neighbors() {
     printf("List of neighboring stations:\n");
     for (int i = 0; i < neighbor_count; i++) {
@@ -42,59 +40,81 @@ void print_neighbors() {
     }
 }
 
-int main(int argc, char* argv[]) {
-    if (argc < 5) {
-        fprintf(stderr, "Usage: %s station-name tcp-port udp-port neighbor1 [neighbor2 ...]\n", argv[0]);
-        return 1;
-    }
-
-    char *station_name = argv[1];
-    int tcp_port = atoi(argv[2]);
-    int udp_port = atoi(argv[3]);
-    char** neighbors_info = &argv[4];
-
-    // Set up TCP socket
-    int tcp_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (tcp_sock < 0) {
+int setup_tcp_socket(int port) {
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
         perror("Failed to create TCP socket");
-        return 1;
+        exit(1);
     }
 
-    struct sockaddr_in tcp_addr;
-    memset(&tcp_addr, 0, sizeof(tcp_addr));
-    tcp_addr.sin_family = AF_INET;
-    tcp_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    tcp_addr.sin_port = htons(tcp_port);
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(port);
 
-    if (bind(tcp_sock, (struct sockaddr*)&tcp_addr, sizeof(tcp_addr)) < 0) {
+    if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         perror("TCP bind failed");
-        close(tcp_sock);
-        return 1;
+        close(sock);
+        exit(1);
     }
 
-    listen(tcp_sock, 5);
+    listen(sock, 5);
+    return sock;
+}
 
-    // Set up UDP socket
-    int udp_sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (udp_sock < 0) {
+int setup_udp_socket(int port) {
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
         perror("Failed to create UDP socket");
-        return 1;
+        exit(1);
     }
 
-    struct sockaddr_in udp_addr;
-    memset(&udp_addr, 0, sizeof(udp_addr));
-    udp_addr.sin_family = AF_INET;
-    udp_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    udp_addr.sin_port = htons(udp_port);
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(port);
 
-    if (bind(udp_sock, (struct sockaddr*)&udp_addr, sizeof(udp_addr)) < 0) {
+    if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         perror("UDP bind failed");
-        close(udp_sock);
-        return 1;
+        close(sock);
+        exit(1);
     }
 
+    return sock;
+}
+
+void send_initial_pings(int udp_sock, const char* station_name, int source_port, char** neighbors, int num_neighbors) {
+    
+    
+    for(int j =0 ; j <7; j++){
+        for (int i = 0; i < num_neighbors; i++) {
+            char neighbor_host[256];
+            int neighbor_port;
+            sscanf(neighbors[i], "%255[^:]:%d", neighbor_host, &neighbor_port);
+
+            struct sockaddr_in dest_addr;
+            char message[256];
+            snprintf(message, sizeof(message), "%s:%d", station_name, source_port);
+
+            memset(&dest_addr, 0, sizeof(dest_addr));
+            dest_addr.sin_family = AF_INET;
+            dest_addr.sin_port = htons(neighbor_port);
+            inet_pton(AF_INET, neighbor_host, &dest_addr.sin_addr);
+
+            sendto(udp_sock, message, strlen(message), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
+            printf("UDP %d sending [%s:%d] to UDP %d\n", source_port, station_name, source_port, neighbor_port);
+            
+        }
+        sleep(1);
+    
+    }
+    sleep(PING_DURATION); // Wait for the duration to give neighbors time to respond
+}
+
+void handle_network_traffic(int tcp_sock, int udp_sock) {
     fd_set readfds;
-    struct timeval timeout;
     char buffer[BUFFER_SIZE];
     int maxfd = (tcp_sock > udp_sock ? tcp_sock : udp_sock) + 1;
 
@@ -103,10 +123,7 @@ int main(int argc, char* argv[]) {
         FD_SET(tcp_sock, &readfds);
         FD_SET(udp_sock, &readfds);
 
-        timeout.tv_sec = 5;
-        timeout.tv_usec = 0;
-
-        int activity = select(maxfd, &readfds, NULL, NULL, &timeout);
+        int activity = select(maxfd, &readfds, NULL, NULL, NULL);
 
         if (activity < 0) {
             perror("Select error");
@@ -143,40 +160,42 @@ int main(int argc, char* argv[]) {
                 int sender_udp_port;
                 sscanf(buffer, "%255[^:]:%d", station_name, &sender_udp_port);
                 add_neighbor(station_name, sender_udp_port);
-                print_neighbors();
             } else {
                 perror("Error receiving UDP data");
             }
         }
-
-        // Send periodic pings to neighbors
-        static int ping_counter = 0;
-        if (ping_counter++ % 10 == 0) {
-            for (int i = 0; i < argc - 4; i++) {
-                char neighbor_host[256];
-                int neighbor_port;
-                sscanf(neighbors_info[i], "%255[^:]:%d", neighbor_host, &neighbor_port);
-
-                struct sockaddr_in dest_addr;
-                char message[256];
-                snprintf(message, sizeof(message), "%s:%d", station_name, udp_port);
-
-                memset(&dest_addr, 0, sizeof(dest_addr));
-                dest_addr.sin_family = AF_INET;
-                dest_addr.sin_port = htons(neighbor_port);
-                inet_pton(AF_INET, neighbor_host, &dest_addr.sin_addr);
-
-                sendto(udp_sock, message, strlen(message), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
-                printf("UDP %d sending [%s:%d] to UDP %d\n", udp_port, station_name, udp_port, neighbor_port);
-            }
-        }
     }
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 5) {
+        fprintf(stderr, "Usage: %s station-name tcp-port udp-port neighbor1 [neighbor2 ...]\n", argv[0]);
+        return 1;
+    }
+
+    char *station_name = argv[1];
+    int tcp_port = atoi(argv[2]);
+    int udp_port = atoi(argv[3]);
+
+    int tcp_sock = setup_tcp_socket(tcp_port);
+    int udp_sock = setup_udp_socket(udp_port);
+
+    send_initial_pings(udp_sock, station_name, udp_port, argv + 4, argc - 4);
+
+    printf("Timeout reached. No more pings will be sent.\n");
+    if (neighbor_count == 0) {
+        printf("No neighbors found.\n");
+    } else {
+        print_neighbors();
+    }
+
+    // Main select loop to handle TCP connections and incoming UDP messages
+    handle_network_traffic(tcp_sock, udp_sock);
 
     close(tcp_sock);
     close(udp_sock);
     return 0;
 }
-
 
 //./protocol BusportB 4003 4004 localhost:4006 localhost:4010 
 //./protocol StationC 4005 4006 localhost:4004 localhost:4008 localhost:4010 
