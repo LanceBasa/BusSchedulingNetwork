@@ -5,12 +5,10 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <sys/time.h>
-#include <time.h>
+#include <sys/select.h>
 
 #define BUFFER_SIZE 1024
 #define MAX_NEIGHBORS 10
-#define PING_INTERVAL 10 // Time in seconds to send pings
 
 typedef struct {
     char station_name[256];
@@ -49,7 +47,6 @@ int main(int argc, char* argv[]) {
     char *station_name = argv[1];
     int tcp_port = atoi(argv[2]);
     int udp_port = atoi(argv[3]);
-    char** neighbors_info = &argv[4];
 
     int tcp_sock = socket(AF_INET, SOCK_STREAM, 0);
     int udp_sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -58,44 +55,59 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    struct sockaddr_in servaddr;
-    memset(&servaddr, 0, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port = htons(tcp_port);
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(udp_port);
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    if (bind(tcp_sock, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
-        perror("TCP bind failed");
-        return 1;
-    }
-
-    listen(tcp_sock, 5);
-
-    servaddr.sin_port = htons(udp_port);
-    if (bind(udp_sock, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
+    if (bind(udp_sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         perror("UDP bind failed");
+        close(udp_sock);
         return 1;
     }
 
+    // Pinging neighbors
+    for (int i = 4; i < argc; i++) {
+        char neighbor_host[256];
+        int neighbor_port;
+        sscanf(argv[i], "%255[^:]:%d", neighbor_host, &neighbor_port);
+
+        struct sockaddr_in dest_addr;
+        char message[256];
+        snprintf(message, sizeof(message), "%s:%d", station_name, udp_port);
+
+        memset(&dest_addr, 0, sizeof(dest_addr));
+        dest_addr.sin_family = AF_INET;
+        dest_addr.sin_port = htons(neighbor_port);
+        inet_pton(AF_INET, neighbor_host, &dest_addr.sin_addr);
+
+        sendto(udp_sock, message, strlen(message), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+        printf("UDP %d sending [%s:%d] to UDP %d\n", udp_port, station_name, udp_port, neighbor_port);
+    }
+    printf("Timeout reached. No more pings will be sent.\n");
+
+    // Print current list of neighbors
+    print_neighbors();
+
+    // Now enter the main select loop to handle TCP and UDP traffic
     fd_set readfds;
     struct timeval timeout;
-    int maxfd = tcp_sock > udp_sock ? tcp_sock : udp_sock;
-
-    time_t last_ping = time(NULL);
-    time_t current_time;
+    int maxfd = (tcp_sock > udp_sock ? tcp_sock : udp_sock) + 1;
 
     while (1) {
         FD_ZERO(&readfds);
         FD_SET(tcp_sock, &readfds);
         FD_SET(udp_sock, &readfds);
 
-        timeout.tv_sec = 1;  // Check every second
+        timeout.tv_sec = 5;
         timeout.tv_usec = 0;
 
-        if (select(maxfd + 1, &readfds, NULL, NULL, &timeout) < 0) {
+        if (select(maxfd, &readfds, NULL, NULL, &timeout) < 0) {
             perror("Select error");
-            continue;
+            break;
         }
+
 
         current_time = time(NULL);
         if (current_time - last_ping >= PING_INTERVAL) {
