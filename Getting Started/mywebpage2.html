@@ -4,6 +4,14 @@
         function setFormAction() {
           var selectedValue = document.getElementById("from").value;
           document.getElementById("myForm").action = selectedValue;
+
+          function updateText(newText) {
+            // Get the div element by its ID
+            var textDiv = document.getElementById("textDiv");
+            
+            // Append the new text to the existing content
+            textDiv.innerHTML += "<p>" + newText + "</p>";
+        }
         
         }
     </script>
@@ -78,6 +86,10 @@
 <div class="container">
   <h2>Here is your route!</h2>
   <p>{{Here_is_your_route}}</p>
+</div>
+
+<div id="textDiv">
+  <!-- Initial content of the div (if any) -->
 </div>
 
 </body>

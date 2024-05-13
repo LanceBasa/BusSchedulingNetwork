@@ -150,12 +150,13 @@ def get_ttEntry(stationName,timetable_list):
         if item.get('arriveAt') == stationName:
             # If 'JunctionE' is found, print its index position
             return index
+    return None
 
  # ------------------ timetable functions end ---------------------------------
 def search_by_value(dictionary, search_value):
     # Iterate through the dictionary's values
     for key, value in dictionary.items():
-        if value == search_value:
+        if value[1] == search_value:
             return key  # Return the key corresponding to the search value
     return None  # Return None if the value is not found
 
@@ -172,7 +173,6 @@ def backtrack(path):
         previous_socket.sendto(backtrackStr.encode('utf-8'), ('localhost', int(key)))
 
 def ping_neighbours(neighbors,station_name,udp_port,udp_socket):
-    time.sleep(2)
     for i in range(10):
     # while num_neighbors != len(neighbor_dictionary):
         # Use select to wait for I/O events
@@ -190,9 +190,10 @@ def ping_neighbours(neighbors,station_name,udp_port,udp_socket):
                 sName,portNum = data.decode('utf-8')[1:].split(':')
                 print(f"Received UDP message from {client_address}: {sName}:{portNum}")
                 if portNum not in neighbor_dictionary.keys():
-                    neighbor_dictionary[portNum] = sName
+                    neighbor_dictionary[portNum] = [neighbor_host,sName]
+            time.sleep(1)
+
         # print(len(neighbor_dictionary), num_neighbors)
-        time.sleep(1)
     return neighbor_dictionary
 
         
@@ -238,14 +239,13 @@ def main():
     modT= os.path.getmtime(filename)
     path=''
 
+    time.sleep(2)
     neighbor_dictionary = ping_neighbours(neighbors,station_name,udp_port,udp_socket)
 
     os.system('clear') #NOTE REMOVE LATER
 
     print("Timetable Loaded")
     print(f"I am {station_name} my neighbours are{neighbor_dictionary}")
-    
-    output_to_html =''
 
     while True:
 
@@ -257,7 +257,7 @@ def main():
         
         for sock in readable:
             if sock == tcp_socket:
-
+                
                 # Handle TCP connection
                 client_socket, client_address = tcp_socket.accept()
                 print(f"TCP connection established with {client_address}")
@@ -295,24 +295,24 @@ def main():
 
                         # path += busport + ';' + station_name
                         path_taken = path.split(';')[1:]
-
-
                         # Send string to neighbours
-                        if neighbors:
-                            for neighbor in neighbors:
-                                path=''
-                                neighbor_host, neighbor_port = neighbor.split(':')
-                                neighbor_name=neighbor_dictionary[neighbor_port]
+                        if neighbor_dictionary:
+                            for neighbor in neighbor_dictionary:
+                                tt_index=''
+                                neighbor_host=neighbor_dictionary[neighbor][0]
+                                neighbor_name=neighbor_dictionary[neighbor][1]
 
+                                if earliestPaths:
 
-                                tt_index = get_ttEntry(neighbor_name,earliestPaths)
-                                earliestRide = earliestPaths[tt_index]
-                                path += busport + ';' + station_name +';'+ earliestRide['busNumber']+';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime']
+                                    tt_index = get_ttEntry(neighbor_name,earliestPaths)
+                                    if tt_index is None: continue
+                                    earliestRide = earliestPaths[tt_index]
+                                    pathUpdate = busport + ';' + station_name +';'+ earliestRide['busNumber']+';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime']
+                                else: print(f"no more bus/train leaving at this hour{currentTime}")
 
-
-                                if neighbor_port not in path_taken:
+                                if neighbor_name not in path_taken:
                                     neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                                    neighbor_socket.sendto(path.encode('utf-8'), (neighbor_host, int(neighbor_port)))
+                                    neighbor_socket.sendto(pathUpdate.encode('utf-8'), (neighbor_host, int(neighbor)))
                                     neighbor_socket.close()
 
                 # client_socket.close()
@@ -336,7 +336,6 @@ def main():
                         print(f"\nQuery Success!\tCurrent time:{currentTime}\nPath taken:{path}\nNow returning query to source!\n")
                         path += ';'+ station_name
                         result = getStations(path)[:]
-                        print(result)
                         path = "~" + path  
                         for item in result:
                             path += "-" + item
@@ -353,21 +352,22 @@ def main():
                     
                     #if this station is not the final destination then send udp to neighbours.
                     path_taken = path.split(';')[1:]
-                    if neighbors:
-                        for neighbor in neighbors:
-                            neighbor_host, neighbor_port = neighbor.split(':')
-                            neighbor_name=neighbor_dictionary[neighbor_port]
+                    if neighbor_dictionary:
+                        for neighbor in neighbor_dictionary:
+                            tt_index=''
+                            neighbor_host=neighbor_dictionary[neighbor][0]
+                            neighbor_name=neighbor_dictionary[neighbor][1]
+                            
                             if earliestPaths:
                                 tt_index = get_ttEntry(neighbor_name,earliestPaths)
+                                if tt_index is None: continue
                                 earliestRide = earliestPaths[tt_index]
-                                # print(f"Earliest path to {neighbor_name}: {earliestRide}")
                                 pathUpdate = path + ';' + station_name +';'+ earliestRide['busNumber']+ ';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime'] 
                             else: print(f"no more bus/train leaving at this hour{currentTime}")
 
                             if neighbor_name not in path_taken:         # to avoid looping, only send to neighbours that have not been visited.
                                 neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                                neighbor_socket.sendto(pathUpdate.encode('utf-8'), (neighbor_host, int(neighbor_port)))
-                                time.sleep(1)
+                                neighbor_socket.sendto(pathUpdate.encode('utf-8'), (neighbor_host, int(neighbor)))
                                 neighbor_socket.close()
 
                 # This is to identify the incoming data as returning data
@@ -379,10 +379,11 @@ def main():
                     backtrack_1 = result[-1].split("-")
                     result[-1] = backtrack_1[0]
 
+                    output_to_html =''
 
                     #if this is the source station name who got the request from client return string information to client.
                     if station_name == result[1]:
-                        print(f"\nQuery Success. Going to {result[-1]} from {station_name}")
+                        print(f"\nFrom {station_name} going to {result[-1]}")
                         
 
                         for item in range(1, len(result) - 3,4):
@@ -415,9 +416,9 @@ if __name__ == "__main__":
 
 
 #commands to run servers to use the timetable in getting started directory
-#  python3 ./station-server.py BusportB 4003 4004 localhost:4006 localhost:4010 
-#  python3 ./station-server.py StationC 4005 4006 localhost:4004 localhost:4008 localhost:4010 
-#  python3 ./station-server.py JunctionE 4009 4010 localhost:4002 localhost:4004 localhost:4006 
-#  python3 ./station-server.py JunctionA 4001 4002 localhost:4010 localhost:4012 
-#  python3 ./station-server.py TerminalD 4007 4008 localhost:4006 
-#  python3 ./station-server.py BusportF 4011 4012 localhost:4002
+# python3 ./station-server.py BusportB 4003 4004 localhost:4006 localhost:4010 
+# python3 ./station-server.py StationC 4005 4006 localhost:4004 localhost:4008 localhost:4010 
+# python3 ./station-server.py JunctionE 4009 4010 localhost:4002 localhost:4004 localhost:4006 
+# python3 ./station-server.py JunctionA 4001 4002 localhost:4010 localhost:4012 
+# python3 ./station-server.py TerminalD 4007 4008 localhost:4006 
+# python3 ./station-server.py BusportF 4011 4012 localhost:4002

@@ -1,0 +1,89 @@
+
+        <html>
+        <head>
+            <script>
+                function setFormAction() {
+                  var selectedValue = document.getElementById("from").value;
+                  document.getElementById("myForm").action = selectedValue;
+                }
+            </script>
+            <style>
+              body {
+                    font-family: Arial, sans-serif;
+                    background-color: #f8f9fa;
+                    margin: 0;
+                    padding: 0;
+              }
+              .container {
+                    max-width: 800px;
+                    margin: 1em auto;
+                    padding: 20px;
+                    background-color: honeydew;
+                    border-radius: 8px;
+                    border: 1px solid gray;
+                    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                }
+                h2 {
+                    color: #333;
+                }
+                p {
+                    color: #555;
+                }
+            </style>
+        </head>
+        <body style="background-image: url('https://images.assetsdelivery.com/compings_v2/zoaarts/zoaarts1810/zoaarts181000012.jpg'); background-repeat: repeat;">
+
+        <div class="container">
+            <h3>&nbsp;Hello, Welcome to Transperth Terminal!</h3>
+        </div>
+
+        <div class="container">
+        <form id="myForm">
+          <table>
+          <tr>
+            <td style="text-align: right;">Leaving from:</td>
+            <td style="text-align: left;">
+              <select name="from" id="from" onchange="setFormAction()" >
+                <option value="default" selected>Select a location</option>
+                <option value="http://localhost:4007/">TerminalD</option>
+                <option value="http://localhost:4003/">BusportB</option>
+                <option value="http://localhost:4011/">BusportF</option>
+                <option value="http://localhost:4001/">JunctionA</option>
+                <option value="http://localhost:4009/">JunctionE</option>
+                <option value="http://localhost:4005/">StationC</option>
+              </select>
+            </td> 
+            <td style="padding-left: 3em;">
+              <label for="departure-time">Departure time:</label>
+              <input type="time" id="departure-time" name="departure-time" value="09:00">
+            </td>
+            <td style="padding-left: 3em;">
+              <label for="destination">Destination:</label>
+              <select name="to">
+                <option value='BusportF'>BusportF</option>
+                <option value='JunctionA'>JunctionA</option>
+                <option value='JunctionE'>JunctionE</option>
+                <option value='StationC'>StationC</option>
+                <option value='TerminalD'>TerminalD</option>
+                <option value='BusportB'>BusportB</option>
+              </select>
+            </td>
+            <td style="padding-left: 3em;"><input type="submit" value=" Let's go! "></td>
+          </tr>
+          </table>
+        </form>
+        </div>
+
+        <div class="container">
+          <h2>Here is your route!</h2>
+          <p>{{Here_is_your_route}}</p>
+        </div>
+
+        <div id="textDiv">
+          <!-- Initial content of the div (if any) -->
+        </div>
+
+        </body>
+
+        </html>
+        
