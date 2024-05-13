@@ -1,3 +1,6 @@
+
+//TO_DO
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,6 +12,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <stddef.h>
 
 
 //for timetable
@@ -327,6 +331,28 @@ void handle_network_traffic(int tcp_sock, int udp_sock) {
     }
 }
 **/
+
+
+// Function to extract station name from HTTP GET request
+char* extract_station_name_from_http_request(char *http_request) {
+    const char *to_keyword = "to=";
+    char *start = strstr(http_request, to_keyword);
+    if (!start) return NULL;
+    
+    start += strlen(to_keyword);
+    char *end = strchr(start, ' ');
+    if (!end) end = strchr(start, '\r'); // Check for end of line if space not found
+    if (!end) return NULL;
+
+    ptrdiff_t length = end - start;
+    char *station_name = malloc(length + 1);
+    if (!station_name) return NULL;
+
+    strncpy(station_name, start, length);
+    station_name[length] = '\0';  // Null-terminate the extracted string
+    return station_name;
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 5) {
         fprintf(stderr, "Usage: %s station-name tcp-port udp-port neighbor1 [neighbor2 ...]\n", argv[0]);
@@ -399,7 +425,7 @@ int main(int argc, char* argv[]) {
             perror("Select error");
             break;
         }
-
+        // Assuming `extract_station_name_from_http_request` is defined as above
         if (FD_ISSET(tcp_sock, &readfds)) {
             struct sockaddr_in cli_addr;
             socklen_t cli_len = sizeof(cli_addr);
@@ -411,13 +437,34 @@ int main(int argc, char* argv[]) {
 
             read(new_sock, buffer, BUFFER_SIZE - 1);
             printf("Received TCP message: %s\n", buffer);
-            snprintf(buffer, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nList of neighboring stations:\n");
-            for (int i = 0; i < neighbor_count; i++) {
-                snprintf(buffer + strlen(buffer), BUFFER_SIZE - strlen(buffer), "Neighbor: %s at UDP port: %d\n", neighbors[i].station_name, neighbors[i].udp_port);
+            
+            char *station_name = extract_station_name_from_http_request(buffer);
+            if (station_name) {
+                printf("Extracted station name for flooding: %s\n", station_name);
+
+                // Flood this station name to all neighbors
+                for (int i = 0; i < neighbor_count; i++) {
+                    char message[256];
+                    snprintf(message, sizeof(message), "Flood: %s", station_name);
+                    struct sockaddr_in dest_addr;
+                    dest_addr.sin_family = AF_INET;
+                    dest_addr.sin_port = htons(neighbors[i].udp_port);
+                    inet_pton(AF_INET, "localhost", &dest_addr.sin_addr);  // Assuming all neighbors are on localhost
+
+                    sendto(udp_sock, message, strlen(message), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
+                    printf("Flooding [%s] to neighbor %s at UDP port %d\n", station_name, neighbors[i].station_name, neighbors[i].udp_port);
+                }
+
+                free(station_name);
+            } else {
+                printf("Station name not found in HTTP request\n");
             }
+
+            snprintf(buffer, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nRequest received.\n");
             send(new_sock, buffer, strlen(buffer), 0);
             close(new_sock);
         }
+
 
         if (FD_ISSET(udp_sock, &readfds)) {
             struct sockaddr_in sender_addr;
