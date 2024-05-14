@@ -111,15 +111,18 @@ void print_timetable(const Timetable *timetable) {
     printf("Station: %s\n", timetable->stationName);
     printf("Location: %s, %s\n", timetable->longitude, timetable->latitude);
 
+    printf("Number of Entries: %zu\n", timetable->numEntries);
+    printf("Entries Capacity: %zu\n", timetable->capacity);
+
     for (size_t i = 0; i < timetable->numEntries; ++i) {
-        printf("The entry is %d , i is %d\n", timetable->numEntries, i);
+        printf("Index: %zu\n", i);
         printf("Departure: %s, Route: %s, From: %s, Arrival: %s, To: %s\n",
                timetable->entries[i].departureTime, timetable->entries[i].routeName,
                timetable->entries[i].departingFrom, timetable->entries[i].arrivalTime,
                timetable->entries[i].arrivalStation);
     }
 
-    printf("TIMETABLE HAS BEEN PRINTED");
+    printf("TIMETABLE HAS BEEN PRINTED\n");
 }
 
 void check_and_update_timetable(Timetable *timetable, const char *filename) {
@@ -149,7 +152,7 @@ void check_and_update_timetable(Timetable *timetable, const char *filename) {
         printf("File has not been modified.\n");
     }
     print_timetable(timetable);
-    printf("Finished CHECK AND UPDATE TIMETABLE FUNCTION");
+    printf("Finished CHECK AND UPDATE TIMETABLE FUNCTION\n");
 }
 
 void earliest_departure(const Timetable *timetable, const char *destination, const char *current_time) {
