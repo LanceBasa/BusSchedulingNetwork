@@ -21,7 +21,7 @@
 #define SA struct sockaddr
 
 #define BUFFER_SIZE 1024
-#define MAX_NEIGHBORS 10
+#define MAX_NEIGHBORS 20
 #define PING_DURATION 10 // Duration to send pings
 
 #define MAX_FILENAME_LENGTH 61// Adjust as needed
@@ -36,6 +36,7 @@ const char* ip_address = "10.135.108.23";
 
 typedef struct {
     char station_name[256];
+    char address[256];
     int udp_port;
 } Neighbor;
 
@@ -109,12 +110,16 @@ void print_timetable(const Timetable *timetable) {
     }
     printf("Station: %s\n", timetable->stationName);
     printf("Location: %s, %s\n", timetable->longitude, timetable->latitude);
+
     for (size_t i = 0; i < timetable->numEntries; ++i) {
+        printf("The entry is %d , i is %d\n", timetable->numEntries, i);
         printf("Departure: %s, Route: %s, From: %s, Arrival: %s, To: %s\n",
                timetable->entries[i].departureTime, timetable->entries[i].routeName,
                timetable->entries[i].departingFrom, timetable->entries[i].arrivalTime,
                timetable->entries[i].arrivalStation);
     }
+
+    printf("TIMETABLE HAS BEEN PRINTED");
 }
 
 void check_and_update_timetable(Timetable *timetable, const char *filename) {
@@ -144,6 +149,7 @@ void check_and_update_timetable(Timetable *timetable, const char *filename) {
         printf("File has not been modified.\n");
     }
     print_timetable(timetable);
+    printf("Finished CHECK AND UPDATE TIMETABLE FUNCTION");
 }
 
 void earliest_departure(const Timetable *timetable, const char *destination, const char *current_time) {
@@ -188,6 +194,15 @@ Neighbor neighbors[MAX_NEIGHBORS];
 int neighbor_count = 0;
 
 void add_neighbor(const char* station_name, int udp_port) {
+
+    // Update the station name for each neighbor once ping is received
+    for (int i = 0; i < neighbor_count; i++){
+        if (neighbors[i].udp_port == udp_port){
+            strcpy(neighbors[i].station_name, station_name);
+        }
+    }
+
+    // Check for duplicate
     for (int i = 0; i < neighbor_count; i++) {
         if (strcmp(neighbors[i].station_name, station_name) == 0 && neighbors[i].udp_port == udp_port) {
             return; // Neighbor already exists
@@ -202,9 +217,8 @@ void add_neighbor(const char* station_name, int udp_port) {
 }
 
 void print_neighbors() {
-    printf("List of neighboring stations:\n");
     for (int i = 0; i < neighbor_count; i++) {
-        printf("Neighbor: %s at UDP port: %d\n", neighbors[i].station_name, neighbors[i].udp_port);
+        printf("NEIGHBOR: %s:%d at Address: %s\n\n", neighbors[i].station_name, neighbors[i].udp_port, neighbors[i].address);
     }
 }
 
@@ -272,11 +286,14 @@ void send_initial_pings(int udp_sock, const char* station_name, int source_port,
         for (int i = 0; i < num_neighbors; i++) {
             char neighbor_host[256];
             int neighbor_port;
+
+            // Extracts address and port of neighbors from command line argument
             sscanf(neighbors[i], "%255[^:]:%d", neighbor_host, &neighbor_port);
 
             struct sockaddr_in dest_addr;
             char message[256];
             snprintf(message, sizeof(message), "!%s:%d", station_name, source_port);
+
 
             memset(&dest_addr, 0, sizeof(dest_addr));
             dest_addr.sin_family = AF_INET;
@@ -284,7 +301,7 @@ void send_initial_pings(int udp_sock, const char* station_name, int source_port,
             inet_pton(AF_INET, neighbor_host, &dest_addr.sin_addr);
 
             sendto(udp_sock, message, strlen(message), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
-            printf("UDP %d sending [%s:%d] to UDP %d\n", source_port, station_name, source_port, neighbor_port);
+            //printf("UDP %d sending [%s:%d] to UDP %d\n", source_port, station_name, source_port, neighbor_port);
             
         }
         sleep(1);
@@ -292,62 +309,6 @@ void send_initial_pings(int udp_sock, const char* station_name, int source_port,
     }
     sleep(PING_DURATION); // Wait for the duration to give neighbors time to respond
 }
-
-/**
-void handle_network_traffic(int tcp_sock, int udp_sock) {
-    fd_set readfds;
-    char buffer[BUFFER_SIZE];
-    int maxfd = (tcp_sock > udp_sock ? tcp_sock : udp_sock) + 1;
-
-    while (1) {
-        FD_ZERO(&readfds);
-        FD_SET(tcp_sock, &readfds);
-        FD_SET(udp_sock, &readfds);
-
-        int activity = select(maxfd, &readfds, NULL, NULL, NULL);
-
-        if (activity < 0) {
-            perror("Select error");
-            break;
-        }
-
-        if (FD_ISSET(tcp_sock, &readfds)) {
-            struct sockaddr_in cli_addr;
-            socklen_t cli_len = sizeof(cli_addr);
-            int new_sock = accept(tcp_sock, (struct sockaddr*)&cli_addr, &cli_len);
-            if (new_sock < 0) {
-                perror("Accept failed");
-                continue;
-            }
-
-            read(new_sock, buffer, BUFFER_SIZE - 1);
-            printf("Received TCP message: %s\n", buffer);
-            snprintf(buffer, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nList of neighboring stations:\n");
-            for (int i = 0; i < neighbor_count; i++) {
-                snprintf(buffer + strlen(buffer), BUFFER_SIZE - strlen(buffer), "Neighbor: %s at UDP port: %d\n", neighbors[i].station_name, neighbors[i].udp_port);
-            }
-            send(new_sock, buffer, strlen(buffer), 0);
-            close(new_sock);
-        }
-
-        if (FD_ISSET(udp_sock, &readfds)) {
-            struct sockaddr_in sender_addr;
-            socklen_t sender_addr_len = sizeof(sender_addr);
-            int len = recvfrom(udp_sock, buffer, sizeof(buffer) - 1, 0, (struct sockaddr*)&sender_addr, &sender_addr_len);
-            if (len > 0) {
-                buffer[len] = '\0';
-                printf("Received UDP message: '%s' from %s\n", buffer, inet_ntoa(sender_addr.sin_addr));
-                char station_name[256];
-                int sender_udp_port;
-                sscanf(buffer, "%255[^:]:%d", station_name, &sender_udp_port);
-                add_neighbor(station_name, sender_udp_port);
-            } else {
-                perror("Error receiving UDP data");
-            }
-        }
-    }
-}
-**/
 
 
 // Function to extract station name from HTTP GET request
@@ -378,6 +339,33 @@ int main(int argc, char* argv[]) {
     // Extract station name from command line arguments
     char *station_name = argv[1];
 
+    int tcp_port = atoi(argv[2]);
+    int udp_port = atoi(argv[3]);
+
+    int tcp_sock = setup_tcp_socket(tcp_port);
+    int udp_sock = setup_udp_socket(udp_port);
+
+    int numNeighbor = argc - 4;
+
+    // populate the neighbor struct
+    for (int i = 0; i < numNeighbor; i++) {
+        char station_name[256];
+        char address[256];
+        int udp_port;
+
+        // Extracts address and udp port from command line argument
+        sscanf(argv[i + 4], "%255[^:]:%d", address, &udp_port);
+
+        // populate neighbor struct with empty string as placeholder for station name
+        strcpy(neighbors[i].station_name, "");
+
+        //populate address and port to neighbor struct
+        strcpy(neighbors[i].address, address);
+        neighbors[i].udp_port = udp_port;
+        
+        printf("%s:%d:%s\n", neighbors[i].address, neighbors[i].udp_port, neighbors[i].station_name);
+    }
+    
 
     // Construct dynamic filename
     char filename[MAX_FILENAME_LENGTH];
@@ -415,13 +403,10 @@ int main(int argc, char* argv[]) {
     
 //----------------------------------done...........................
 
-    int tcp_port = atoi(argv[2]);
-    int udp_port = atoi(argv[3]);
-
-    int tcp_sock = setup_tcp_socket(tcp_port);
-    int udp_sock = setup_udp_socket(udp_port);
 
     send_initial_pings(udp_sock, station_name, udp_port, argv + 4, argc - 4);
+
+    //print_neighbors();
 
     printf("Timeout reached. No more pings will be sent.\n");
     if (neighbor_count == 0) {
@@ -447,6 +432,8 @@ int main(int argc, char* argv[]) {
             perror("Select error");
             break;
         }
+
+        // ----------------------TCP Section----------------------
         // Assuming `extract_station_name_from_http_request` is defined as above
         if (FD_ISSET(tcp_sock, &readfds)) {
             struct sockaddr_in cli_addr;
@@ -464,6 +451,11 @@ int main(int argc, char* argv[]) {
             if (station_name) {
                 printf("Extracted station name for flooding: %s\n", station_name);
 
+                char departure_time = "06:00";
+
+                check_and_update_timetable(&timetable, filename);
+
+
                 // Flood this station name to all neighbors
                 for (int i = 0; i < neighbor_count; i++) {
                     char message[256];
@@ -474,7 +466,7 @@ int main(int argc, char* argv[]) {
                     inet_pton(AF_INET, "localhost", &dest_addr.sin_addr);  // Assuming all neighbors are on localhost
 
                     sendto(udp_sock, message, strlen(message), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
-                    printf("Flooding [%s] to neighbor %s at UDP port %d\n", station_name, neighbors[i].station_name, neighbors[i].udp_port);
+                    printf("Flooding from [%s] to neighbor %s at UDP port %d at time: %s\n", station_name, neighbors[i].station_name, neighbors[i].udp_port, departure_time);
                 }
 
                 free(station_name);
@@ -488,6 +480,8 @@ int main(int argc, char* argv[]) {
         }
 
 
+        // -----------------------UDP Section---------------------------------
+        
         if (FD_ISSET(udp_sock, &readfds)) {
             struct sockaddr_in sender_addr;
             socklen_t sender_addr_len = sizeof(sender_addr);
@@ -502,16 +496,23 @@ int main(int argc, char* argv[]) {
 
             if (dataIdentifyer == '!') {
                 // Handle the message with data identifier '!'
-                printf("Received a message with data identifier '!'\n");
+                //printf("Received a message with data identifier '!'\n");
                 char station_name[256];
                 int sender_udp_port;
                 sscanf(buffer, "%255[^:]:%d", station_name, &sender_udp_port);
                 add_neighbor(station_name, sender_udp_port);
 
-            } else {
-                // Handle other messages
-                printf("Received a message with a different data identifier\n");
             }
+            
+            else if (dataIdentifyer == '~') {
+                // Handle other messages
+                printf("Returning Data\n");
+            }
+
+            else {
+                printf("\n Query");
+
+            };
                 
 
             } else {
