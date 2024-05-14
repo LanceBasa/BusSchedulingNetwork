@@ -410,12 +410,11 @@ int main(int argc, char* argv[]) {
     timetable.lastModified = statbuf.st_mtime;
 
     // Print the timetable initially
-    print_timetable(&timetable);
+    //print_timetable(&timetable);
 
     
 //----------------------------------done...........................
 
-    char *station_name = argv[1];
     int tcp_port = atoi(argv[2]);
     int udp_port = atoi(argv[3]);
 
@@ -493,13 +492,28 @@ int main(int argc, char* argv[]) {
             struct sockaddr_in sender_addr;
             socklen_t sender_addr_len = sizeof(sender_addr);
             int len = recvfrom(udp_sock, buffer, sizeof(buffer) - 1, 0, (struct sockaddr*)&sender_addr, &sender_addr_len);
+
             if (len > 0) {
                 buffer[len] = '\0';
                 printf("Received UDP message: '%s' from %s\n", buffer, inet_ntoa(sender_addr.sin_addr));
+                
+                char dataIdentifyer = buffer[0];
+                printf("Data identifier: '%c'\n", dataIdentifyer);
+
+            if (dataIdentifyer == '!') {
+                // Handle the message with data identifier '!'
+                printf("Received a message with data identifier '!'\n");
                 char station_name[256];
                 int sender_udp_port;
                 sscanf(buffer, "%255[^:]:%d", station_name, &sender_udp_port);
                 add_neighbor(station_name, sender_udp_port);
+
+            } else {
+                // Handle other messages
+                printf("Received a message with a different data identifier\n");
+            }
+                
+
             } else {
                 perror("Error receiving UDP data");
             }
