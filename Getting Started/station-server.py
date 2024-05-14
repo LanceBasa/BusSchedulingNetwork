@@ -215,36 +215,39 @@ def getStations(string):
 timeout_occurred = False
 tcp_socket_global = ''
 
-def get_tcp_socket(tcp_socket):
-    return tcp_socket
+
+# def setup_signal_handler(tcp_socket):
+#     signal.signal(signal.SIGALRM, lambda signum, frame: timeout_handler(signum, frame, tcp_socket))
+
+# def timeout_handler(signum, frame, tcp_socket):
+#     global timeout_occurred
+#     timeout_occurred = True
+#     print("Timeout occurred!")
+#     if timeout_occurred:
+#         print("Timeout occurred during TCP processing.")
+#         # Handle timeout...   
+#         with open('mywebpage2.html', 'r') as file:
+#             client_socket, client_address = tcp_socket.accept()
+#             response_template = file.read()
+#             # Replace the placeholder in the HTML template with the dynamic content
+#             response_html = response_template.replace('{{Here_is_your_route}}', 'Timed out, no path found')
+#             # Construct the HTTP response with the complete HTML content
+#             response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
+#             client_socket.sendall(response.encode('utf-8'))
+#             client_socket.close()
 
 def timeout_handler(signum, frame):
+    time.sleep(5)
+    global timeout_occurred
     timeout_occurred = True
     print("Timeout occurred!")
-    if timeout_occurred:
-        print("Timeout occurred during TCP processing.")
-            # Handle timeout...   
-        with open('mywebpage2.html', 'r') as file:
-                    
-                    client_socket, client_address = tcp_socket.accept()
 
-                    response_template = file.read()
-
-                    # Replace the placeholder in the HTML template with the dynamic content
-                    response_html = response_template.replace('{{Here_is_your_route}}', 'Timed out no path found')
-
-                    # Construct the HTTP response with the complete HTML content
-                    response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
-                    client_socket.sendall(response.encode('utf-8'))
-                    client_socket.close()
-
-def start_global_timer(timeout_duration, tcp_socket):
+def start_global_timer(timeout_duration):
     # Set up the signal handler for SIGALRM
     signal.signal(signal.SIGALRM, timeout_handler)
     # Set the timeout duration
     signal.alarm(timeout_duration)
     print("Global timer started.")
-
 
 def stop_global_timer():
     # Reset the alarm
@@ -254,6 +257,8 @@ def stop_global_timer():
 
 
 def main():
+    global timeout_occurred
+
     result = []
     if len(sys.argv) < 4:
         print("Usage: ./station <station_name> <tcp_port> <udp_port> [<neighbor1> <neighbor2> ...]")
@@ -294,6 +299,25 @@ def main():
 
 
     while True:
+        if timeout_occurred:
+                print("Timeout occurred during TCP processing.")
+                # Handle timeout...   
+                output_to_html= "No route found"
+                #print(output_to_html)
+                stop_global_timer()
+
+                with open('mywebpage2.html', 'r') as file:
+                    response_template = file.read()
+
+                # Replace the placeholder in the HTML template with the dynamic content
+                response_html = response_template.replace('{{Here_is_your_route}}', output_to_html)
+
+                # Construct the HTTP response with the complete HTML content
+                response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
+                client_socket.sendall(response.encode('utf-8'))
+                client_socket.close()
+                stop_global_timer()
+                timeout_occurred = False
 
        
 
@@ -301,6 +325,8 @@ def main():
         # Use select to wait for I/O events
         readable, _, _ = select.select(inputs, [], [])
 
+
+        
 
         
         for sock in readable:
@@ -317,7 +343,7 @@ def main():
 
 
                 # Start the global timer when a TCP request is received
-                start_global_timer(4, tcp_socket)  # 10 seconds timeout
+                
                 # Receive data from the client
                 data = client_socket.recv(1024)
                 if data:
@@ -373,12 +399,16 @@ def main():
                                     neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                                     neighbor_socket.sendto(pathUpdate.encode('utf-8'), (neighbor_host, int(neighbor)))
                                     neighbor_socket.close()
+                start_global_timer(3)  # Example: 10 seconds timeout
                 # client_socket.close()
                 # client_socket.close()
+                # time.sleep(6)
+            
                 
             elif sock == udp_socket:
                 
                 
+
                                 # Handle UDP message
                 data, client_address = udp_socket.recvfrom(1024)
                 dataIdentifyer =  data.decode('utf-8')[0]
@@ -409,7 +439,6 @@ def main():
                     earliestPaths = earliest(currentTime, timetable)
                     if not earliestPaths: print("No more bus for today. Walk home ;("); break
 
-                    ()
                     #if this station is not the final destination then send udp to neighbours.
                     path_taken = path.split(';')[1:]
                     if neighbor_dictionary:
@@ -447,6 +476,7 @@ def main():
                     #if this is the source station name who got the request from client return string information to client.
                     if station_name == result[1]:
                         print(f"\nFrom {station_name} going to {result[-1]}")
+                        stop_global_timer()
                         
 
                         for item in range(1, len(result) - 3,4):
@@ -455,7 +485,6 @@ def main():
                             output_to_html += f"\tFrom {result[item]} catch {result[item+1]} leaving at {result[item+2]} and arrived at {result[item+4]} at {result[item+3]}\n" 
                         
                         print(output_to_html)
-                        stop_global_timer()
 
                         with open('mywebpage2.html', 'r') as file:
                             response_template = file.read()
@@ -467,9 +496,16 @@ def main():
                         response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
                         client_socket.sendall(response.encode('utf-8'))
                         #client_socket.close()
+                        
+                        timeout_occurred = False
                     else:
                         print(f"\nReceived backtrack message {backPath}")
                         backtrack(backPath)
+
+            #time.sleep(3)
+            #print("REACHED HERE!!!")
+
+            
 # Handle timeouts
                                      
             
