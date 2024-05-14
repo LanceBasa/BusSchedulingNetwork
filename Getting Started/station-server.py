@@ -29,6 +29,9 @@ import select
 import os
 import datetime
 import time
+import signal
+
+
 
 import urllib.parse
 
@@ -40,7 +43,7 @@ neighbor_dictionary={}
 
 def tcp_server(tcp_port):
     # Define the host
-    host = '10.135.123.132'  # Listen on localhost
+    host = '10.135.183.27'  # Listen on localhost
     
     # Create a TCP socket object
     tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -62,7 +65,7 @@ def tcp_server(tcp_port):
 
 def udp_server(udp_port, neighbors=None):
     # Define the host
-    host = '10.135.123.132'  # Listen on localhost
+    host = '10.135.183.27'  # Listen on localhost
     
     # Create a UDP socket object
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -208,6 +211,45 @@ def getStations(string):
     stations_list = [parts[i] for i in range(0, len(parts), 4)]
     return stations_list
 
+# Global flag to track timeout occurrence
+timeout_occurred = False
+tcp_socket_global = ''
+
+def get_tcp_socket(tcp_socket):
+    return tcp_socket
+
+def timeout_handler(signum, frame):
+    timeout_occurred = True
+    print("Timeout occurred!")
+    if timeout_occurred:
+        print("Timeout occurred during TCP processing.")
+            # Handle timeout...   
+        with open('mywebpage2.html', 'r') as file:
+                    
+                    client_socket, client_address = tcp_socket.accept()
+
+                    response_template = file.read()
+
+                    # Replace the placeholder in the HTML template with the dynamic content
+                    response_html = response_template.replace('{{Here_is_your_route}}', 'Timed out no path found')
+
+                    # Construct the HTTP response with the complete HTML content
+                    response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
+                    client_socket.sendall(response.encode('utf-8'))
+                    client_socket.close()
+
+def start_global_timer(timeout_duration, tcp_socket):
+    # Set up the signal handler for SIGALRM
+    signal.signal(signal.SIGALRM, timeout_handler)
+    # Set the timeout duration
+    signal.alarm(timeout_duration)
+    print("Global timer started.")
+
+
+def stop_global_timer():
+    # Reset the alarm
+    signal.alarm(0)
+    print("Global timer stopped.")
 
 
 
@@ -253,6 +295,8 @@ def main():
 
     while True:
 
+       
+
 
         # Use select to wait for I/O events
         readable, _, _ = select.select(inputs, [], [])
@@ -261,6 +305,9 @@ def main():
         
         for sock in readable:
             if sock == tcp_socket:
+
+                
+                print(timeout_occurred)
                 
                 # Handle TCP connection
                 client_socket, client_address = tcp_socket.accept()
@@ -268,6 +315,9 @@ def main():
                 print(f"TCP connectionsadasd established with {client_address}")
                 print(f"TCP connectisadasdasdason established with {client_address}")
 
+
+                # Start the global timer when a TCP request is received
+                start_global_timer(4, tcp_socket)  # 10 seconds timeout
                 # Receive data from the client
                 data = client_socket.recv(1024)
                 if data:
@@ -278,11 +328,14 @@ def main():
                         departure_time_encoded = match.group(2)
                         departure_time = urllib.parse.unquote(departure_time_encoded)
                         busport = match.group(3).strip()
+                        #stop_global_timer()
                         if station_name== busport:
                             print(f"You are already at {station_name}")
                             break
                         else:
                             print(f"Leaving {station_name} at {departure_time} to go to {busport}")
+
+
 
 
 
@@ -325,8 +378,8 @@ def main():
                 
             elif sock == udp_socket:
                 
-
-                # Handle UDP message
+                
+                                # Handle UDP message
                 data, client_address = udp_socket.recvfrom(1024)
                 dataIdentifyer =  data.decode('utf-8')[0]
 
@@ -356,7 +409,7 @@ def main():
                     earliestPaths = earliest(currentTime, timetable)
                     if not earliestPaths: print("No more bus for today. Walk home ;("); break
 
-                    
+                    ()
                     #if this station is not the final destination then send udp to neighbours.
                     path_taken = path.split(';')[1:]
                     if neighbor_dictionary:
@@ -402,6 +455,7 @@ def main():
                             output_to_html += f"\tFrom {result[item]} catch {result[item+1]} leaving at {result[item+2]} and arrived at {result[item+4]} at {result[item+3]}\n" 
                         
                         print(output_to_html)
+                        stop_global_timer()
 
                         with open('mywebpage2.html', 'r') as file:
                             response_template = file.read()
@@ -412,11 +466,13 @@ def main():
                         # Construct the HTTP response with the complete HTML content
                         response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
                         client_socket.sendall(response.encode('utf-8'))
-                        client_socket.close()
+                        #client_socket.close()
                     else:
                         print(f"\nReceived backtrack message {backPath}")
                         backtrack(backPath)
-
+# Handle timeouts
+                                     
+            
             
 
 
