@@ -34,7 +34,7 @@ cat << THE_END
 <style>
 div.box {
   margin:		1em;
-  width:		30em;
+  width:		40em;
   border-radius:	6px;
   border:		1px solid gray;
   background-color:	honeydew;
@@ -64,6 +64,12 @@ cat << THE_END
 <form action="http://$HOST:$tcpport/">
   <table>
   <tr>
+    <td style="text-align: right;">
+      <label for="departure-time">Departure time:</label>
+    </td>   
+    <td style="text-align: right;">
+      <input type="time" id="departure-time" name="departure-time" value="09:00">
+    </td>   
     <td style="text-align: right;">Leaving from:</td>
     <td style="text-align: left;">&nbsp;<b>$from</b></td>
     <td style="padding-left: 3em;"><i>http://$HOST:$tcpport/</i></td>

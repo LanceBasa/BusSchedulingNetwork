@@ -212,40 +212,34 @@ def getStations(string):
     return stations_list
 
 # Global flag to track timeout occurrence
-timeout_occurred = False
-tcp_socket_global = ''
 
 def get_tcp_socket(tcp_socket):
     return tcp_socket
 
-def timeout_handler(signum, frame):
-    global timeout_occurred
+def timeout_handler(signum, frame,tcp_socket):
     timeout_occurred = True
     print("Timeout occurred!")
+    if timeout_occurred:
+        print("Timeout occurred during TCP processing.")
+            # Handle timeout...   
+        with open('response_page.html', 'r') as file:
+                    
+                    client_socket, client_address = tcp_socket.accept()
 
-def start_global_timer(timeout_duration):
-    global timer_active
-    timer_active = True
-    # Set up the signal handler for SIGALRM
-    signal.signal(signal.SIGALRM, timeout_handler)
-    # Set the timeout duration
-    signal.alarm(timeout_duration)
-    print("Global timer started.")
+                    response_template = file.read()
 
+                    # Replace the placeholder in the HTML template with the dynamic content
+                    response_html = response_template.replace('{{Here_is_your_route}}', 'Timed out no path found')
 
+                    # Construct the HTTP response with the complete HTML content
+                    response = f"HTTP/1.1 404 Not found\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
+                    client_socket.sendall(response.encode('utf-8'))
+                    client_socket.close()
 
-def stop_global_timer():
-    global timer_active
-    timer_active = False
-    # Reset the alarm
-    signal.alarm(0)
-    print("Global timer stopped.")
 
 
 
 def main():
-    timeout_occurred = False  # Initialize the timeout flag
-
     result = []
     if len(sys.argv) < 4:
         print("Usage: ./station <station_name> <tcp_port> <udp_port> [<neighbor1> <neighbor2> ...]")
@@ -296,46 +290,48 @@ def main():
 
         
         for sock in readable:
-            if sock == tcp_socket:                
+            if sock == tcp_socket:
+
+                
+                
                 # Handle TCP connection
                 client_socket, client_address = tcp_socket.accept()
                 print(f"TCP connection established with {client_address}")
-                print(f"TCP connectionsadasd established with {client_address}")
-                print(f"TCP connectisadasdasdason established with {client_address}")
+
 
 
                 # Start the global timer when a TCP request is received
-                start_global_timer(4)  # 10 seconds timeout
+                # start_global_timer(4, tcp_socket)  # 10 seconds timeout
                 # Receive data from the client
                 data = client_socket.recv(1024)
+                print (data)
                 if data:
                     # Extract the value of 'to' parameter from the request
-                    # request = data.decode('utf-8')
-                    # match = re.search(r'GET /.*\?from=([^&]+)&departure-time=([^&]+)&to=([^\s&]+)', request)
-                    # if match:
-                    #     departure_time_encoded = match.group(2)
-                    #     departure_time = urllib.parse.unquote(departure_time_encoded)
-                    #     busport = match.group(3).strip()
-                    #     #stop_global_timer()
-                    #     if station_name== busport:
-                    #         print(f"You are already at {station_name}")
-                    #         break
-                    #     else:
-                    #         print(f"Leaving {station_name} at {departure_time} to go to {busport}")
-                    # currentTime = datetime.datetime.strptime(departure_time, '%H:%M').time()
+                        request = data.decode('utf-8')
+                        match = re.search(r'GET /.*\?departure-time=([^&]+)&to=([^\s&]+)', request)
+                        if match:
+                            departure_time_encoded = match.group(1)  # Extract departure time
+                            departure_time = urllib.parse.unquote(departure_time_encoded)  # Decode URL encoding
+                            busport = match.group(2).strip() 
+                            if station_name== busport:
+                                print(f"You are already at {station_name}")
+                                break
+                            else:
+                                print(f"Leaving {station_name} at {departure_time} to go to {busport}")
+                        currentTime = datetime.datetime.strptime(departure_time, '%H:%M').time()
 
 
                         
-                    request = data.decode('utf-8')
-                    match = re.search(r'GET /.*\?to=([^\s&]+)', request)
-                    if match:
-                        print("hehe")
-                        busport = match.group(1)
-                        print("Selected busport:", busport)
+                    # request = data.decode('utf-8')
+                    # match = re.search(r'GET /.*\?to=([^\s&]+)', request)
+                    # if match:
+                    #     print("hehe")
+                    #     busport = match.group(1)
+                    #     print("Selected busport:", busport)
 
 
-                        # get current time (only applies in tcp connection. in udp it uses the arrival time in the string)
-                        currentTime = datetime.datetime.now().time()
+                    #     # get current time (only applies in tcp connection. in udp it uses the arrival time in the string)
+                    #     currentTime = datetime.datetime.now().time()
 
 
                         # check timetable for change every tcp and udp request
@@ -452,39 +448,20 @@ def main():
                             output_to_html += f"\tFrom {result[item]} catch {result[item+1]} leaving at {result[item+2]} and arrived at {result[item+4]} at {result[item+3]}\n" 
                         
                         print(output_to_html)
-                        stop_global_timer()
                         time.sleep(2)
                         with open('response_page.html', 'r') as file:
                             response_template = file.read()
-
                         # Replace the placeholder in the HTML template with the dynamic content
                             response_html = response_template.replace('{{Here_is_your_route}}', output_to_html)
-
                             # Construct the HTTP response with the complete HTML content
                             response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
                             client_socket.sendall(response.encode('utf-8'))
-                        # client_socket.close()
+                            client_socket.close()
                     else:
                         print(f"\nReceived backtrack message {backPath}")
                         backtrack(backPath)
 # Handle timeouts
-        if timeout_occurred:
-            print("Timeout occurred during TCP processing.")
-            with open('response_page.html', 'r') as file:
-                response_template = file.read()
-
-                # Replace the placeholder in the HTML template with the dynamic content
-                response_html = response_template.replace('{{Here_is_your_route}}', 'Sorry, the request timed out.')
-
-                # Construct the HTTP response with the complete HTML content
-                response = f"HTTP/1.1 200 Gateway Timeout\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
-            
-            # Send the response back to the client
-                client_socket.sendall(response.encode('utf-8'))
-            client_socket.close()
-
-            # Reset the timeout flag
-            timeout_occurred = False          
+                                     
             
             
 
