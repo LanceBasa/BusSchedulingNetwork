@@ -1,0 +1,29 @@
+# station-name,longitude,latitude
+TerminalN,115.8700,-31.6300
+# departure-time,route-name,departing-from,arrival-time,arrival-station
+06:02,busN_M,stopN,06:48,StationM
+06:39,busN_M,stopN,07:23,StationM
+07:13,busN_M,stopN,07:57,StationM
+07:48,busN_K,stopN,08:08,JunctionK
+08:23,busN_K,stopN,08:45,JunctionK
+08:59,busN_M,stopN,09:43,StationM
+09:31,busN_K,stopN,09:52,JunctionK
+10:07,busN_K,stopN,10:28,JunctionK
+10:42,busN_K,stopN,11:02,JunctionK
+11:18,busN_K,stopN,11:39,JunctionK
+11:51,busN_M,stopN,12:37,StationM
+12:25,busN_K,stopN,12:47,JunctionK
+13:00,busN_M,stopN,13:44,StationM
+13:34,busN_K,stopN,13:56,JunctionK
+14:11,busN_K,stopN,14:32,JunctionK
+14:44,busN_M,stopN,15:29,StationM
+15:21,busN_M,stopN,16:07,StationM
+15:57,busN_M,stopN,16:42,StationM
+16:31,busN_K,stopN,16:53,JunctionK
+17:08,busN_K,stopN,17:29,JunctionK
+17:43,busN_M,stopN,18:29,StationM
+18:17,busN_M,stopN,19:01,StationM
+18:50,busN_K,stopN,19:12,JunctionK
+19:27,busN_M,stopN,20:13,StationM
+20:01,busN_M,stopN,20:46,StationM
+20:36,busN_K,stopN,20:58,JunctionK

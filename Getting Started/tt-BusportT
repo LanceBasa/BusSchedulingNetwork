@@ -1,0 +1,17 @@
+# station-name,longitude,latitude
+BusportT,115.8000,-31.7700
+# departure-time,route-name,departing-from,arrival-time,arrival-station
+06:01,busT_O,stopT,06:16,JunctionO
+07:06,busT_O,stopT,07:20,JunctionO
+08:11,busT_O,stopT,08:25,JunctionO
+09:15,busT_O,stopT,09:30,JunctionO
+10:21,busT_O,stopT,10:36,JunctionO
+11:28,busT_O,stopT,11:42,JunctionO
+12:32,busT_O,stopT,12:46,JunctionO
+13:35,busT_O,stopT,13:49,JunctionO
+14:41,busT_O,stopT,14:55,JunctionO
+15:47,busT_O,stopT,16:03,JunctionO
+16:51,busT_O,stopT,17:06,JunctionO
+17:58,busT_O,stopT,18:13,JunctionO
+19:03,busT_O,stopT,19:18,JunctionO
+20:09,busT_O,stopT,20:25,JunctionO

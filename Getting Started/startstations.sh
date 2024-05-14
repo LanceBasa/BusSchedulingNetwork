@@ -1,14 +1,20 @@
-./station-server JunctionA 4001 4002 localhost:4010 localhost:4012 &
-./station-server BusportB 4003 4004 localhost:4006 localhost:4010 &
-./station-server StationC 4005 4006 localhost:4004 localhost:4008 localhost:4010 &
-./station-server TerminalD 4007 4008 localhost:4006 &
-./station-server JunctionE 4009 4010 localhost:4002 localhost:4004 localhost:4006 &
-./station-server BusportF 4011 4012 localhost:4002 &
-
-
-# python3 ./station-server.py BusportB 4003 4004 localhost:4006 localhost:4010 &
-# python3 ./station-server.py StationC 4005 4006 localhost:4004 localhost:4008 localhost:4010 &
-# python3 ./station-server.py JunctionE 4009 4010 localhost:4002 localhost:4004 localhost:4006&
-# python3 ./station-server.py JunctionA 4001 4002 localhost:4010 localhost:4012 &
-# python3 ./station-server.py TerminalD 4007 4008 localhost:4006 &
-# python3 ./station-server.py BusportF 4011 4012 localhost:4002
+python3 ./station-server.py StationA 4001 4002 10.135.123.132:4030 &
+python3 ./station-server.py TerminalB 4003 4004 10.135.123.132:4022 &
+python3 ./station-server.py JunctionC 4005 4006 10.135.123.132:4012 10.135.123.132:4036 &
+python3 ./station-server.py BusportD 4007 4008 10.135.123.132:4036 &
+python3 ./station-server.py StationE 4009 4010 10.135.123.132:4012 &
+python3 ./station-server.py TerminalF 4011 4012 10.135.123.132:4006 10.135.123.132:4010 10.135.123.132:4014 &
+python3 ./station-server.py JunctionG 4013 4014 10.135.123.132:4012 10.135.123.132:4016 10.135.123.132:4020 10.135.123.132:4030 &
+python3 ./station-server.py BusportH 4015 4016 10.135.123.132:4014 10.135.123.132:4022 10.135.123.132:4026 &
+python3 ./station-server.py StationI 4017 4018 10.135.123.132:4020 10.135.123.132:4038 &
+python3 ./station-server.py TerminalJ 4019 4020 10.135.123.132:4014 10.135.123.132:4018 10.135.123.132:4024 10.135.123.132:4032 &
+python3 ./station-server.py JunctionK 4021 4022 10.135.123.132:4004 10.135.123.132:4016 10.135.123.132:4028 10.135.123.132:4030 &
+python3 ./station-server.py BusportL 4023 4024 10.135.123.132:4020 10.135.123.132:4036 &
+python3 ./station-server.py StationM 4025 4026 10.135.123.132:4016 10.135.123.132:4028 &
+python3 ./station-server.py TerminalN 4027 4028 10.135.123.132:4022 10.135.123.132:4026 &
+python3 ./station-server.py JunctionO 4029 4030 10.135.123.132:4002 10.135.123.132:4014 10.135.123.132:4022 10.135.123.132:4040 &
+python3 ./station-server.py BusportP 4031 4032 10.135.123.132:4020 10.135.123.132:4034 &
+python3 ./station-server.py StationQ 4033 4034 10.135.123.132:4032&
+python3 ./station-server.py TerminalR 4035 4036 10.135.123.132:4006 10.135.123.132:4008 10.135.123.132:4024&
+python3 ./station-server.py JunctionS 4037 4038 10.135.123.132:4018&
+python3 ./station-server.py BusportT 4039 4040 10.135.123.132:4030

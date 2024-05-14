@@ -1,0 +1,17 @@
+# station-name,longitude,latitude
+StationQ,116.1200,-31.6300
+# departure-time,route-name,departing-from,arrival-time,arrival-station
+06:01,busQ_P,stopQ,06:21,BusportP
+07:07,busQ_P,stopQ,07:27,BusportP
+08:12,busQ_P,stopQ,08:32,BusportP
+09:19,busQ_P,stopQ,09:39,BusportP
+10:26,busQ_P,stopQ,10:47,BusportP
+11:32,busQ_P,stopQ,11:53,BusportP
+12:38,busQ_P,stopQ,12:58,BusportP
+13:45,busQ_P,stopQ,14:05,BusportP
+14:49,busQ_P,stopQ,15:10,BusportP
+15:54,busQ_P,stopQ,16:13,BusportP
+17:00,busQ_P,stopQ,17:20,BusportP
+18:07,busQ_P,stopQ,18:28,BusportP
+19:14,busQ_P,stopQ,19:35,BusportP
+20:18,busQ_P,stopQ,20:39,BusportP

@@ -449,14 +449,11 @@ def main():
                         
                         print(output_to_html)
                         time.sleep(2)
-                        with open('response_page.html', 'r') as file:
-                            response_template = file.read()
-                        # Replace the placeholder in the HTML template with the dynamic content
-                            response_html = response_template.replace('{{Here_is_your_route}}', output_to_html)
-                            # Construct the HTTP response with the complete HTML content
-                            response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
-                            client_socket.sendall(response.encode('utf-8'))
-                            client_socket.close()
+                        output_to_html ="<html><body>"+'<h1>Result</h1> ' + output_to_html+ " <a href=\"mywebpage.html\">Go back</a></body></html>"
+
+                        response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n {output_to_html}\r\n\r\n"
+                        client_socket.sendall(response.encode('utf-8'))
+                        # client_socket.close()
                     else:
                         print(f"\nReceived backtrack message {backPath}")
                         backtrack(backPath)

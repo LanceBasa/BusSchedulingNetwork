@@ -1,0 +1,17 @@
+# station-name,longitude,latitude
+JunctionS,115.9200,-31.7900
+# departure-time,route-name,departing-from,arrival-time,arrival-station
+06:01,busS_I,stopS,06:24,StationI
+07:04,busS_I,stopS,07:28,StationI
+08:08,busS_I,stopS,08:32,StationI
+09:13,busS_I,stopS,09:37,StationI
+10:17,busS_I,stopS,10:39,StationI
+11:23,busS_I,stopS,11:47,StationI
+12:28,busS_I,stopS,12:51,StationI
+13:32,busS_I,stopS,13:54,StationI
+14:37,busS_I,stopS,15:00,StationI
+15:42,busS_I,stopS,16:05,StationI
+16:49,busS_I,stopS,17:13,StationI
+17:57,busS_I,stopS,18:20,StationI
+19:04,busS_I,stopS,19:27,StationI
+20:08,busS_I,stopS,20:32,StationI
