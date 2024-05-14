@@ -31,11 +31,12 @@ import datetime
 import time
 
 import urllib.parse
+UDP_TIMEOUT = 5
+last_send_time = {} # to keep track of timeouts for sequence numbers
 
 
 
 num_neighbors = len(sys.argv) - 4
-print( num_neighbors)
 neighbor_dictionary={}
 
 def tcp_server(tcp_port):
@@ -204,7 +205,7 @@ def ping_neighbours(neighbors, station_name, udp_port, udp_socket):
 
 def getStations(string):
     parts = string.split(';')
-    del parts[0]
+    del parts[0:2]
     stations_list = [parts[i] for i in range(0, len(parts), 4)]
     return stations_list
 
@@ -212,6 +213,8 @@ def getStations(string):
 
 
 def main():
+    seq_num=0
+
     result = []
     if len(sys.argv) < 4:
         print("Usage: ./station <station_name> <tcp_port> <udp_port> [<neighbor1> <neighbor2> ...]")
@@ -251,11 +254,46 @@ def main():
     print(f"I am {station_name} my neighbours are{neighbor_dictionary}")
 
 
+    # def timeouts(socket):
+    #     data, server_address = udp_socket.recvfrom(1024)
+
+    #     if data:
+
+
+
     while True:
+
+
 
 
         # Use select to wait for I/O events
         readable, _, _ = select.select(inputs, [], [])
+
+        # check timers here
+        for item in last_send_time:
+            last_send_time2 = datetime.datetime.strptime(last_send_time[item], '%H:%M').time()
+
+            # Calculate the timer_time 5 seconds after last_send_time2
+            timer_time = datetime.datetime.combine(datetime.date.today(), last_send_time2) + datetime.timedelta(seconds=5)
+
+            # Get the current datetime
+            current_datetime = datetime.datetime.now()
+
+            # Check if the current datetime is later than timer_time
+            if current_datetime > timer_time:
+                print ("timed out")
+                with open('mywebpage2.html', 'r') as file:
+                    client_socket, client_address = tcp_socket.accept()
+
+                    response_template = file.read()
+
+                    # Replace the placeholder in the HTML template with the dynamic content
+                    response_html = response_template.replace('{{Here_is_your_route}}', 'Timed out no path found')
+
+                    # Construct the HTTP response with the complete HTML content
+                    response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
+                    client_socket.sendall(response.encode('utf-8'))
+                    client_socket.close()
 
 
         
@@ -265,8 +303,7 @@ def main():
                 # Handle TCP connection
                 client_socket, client_address = tcp_socket.accept()
                 print(f"TCP connection established with {client_address}")
-                print(f"TCP connectionsadasd established with {client_address}")
-                print(f"TCP connectisadasdasdason established with {client_address}")
+
 
                 # Receive data from the client
                 data = client_socket.recv(1024)
@@ -300,7 +337,7 @@ def main():
                         
 
                         # path += busport + ';' + station_name
-                        path_taken =' '
+                        # path_taken =' '
                         # Send string to neighbours
                         if neighbor_dictionary:
                             for neighbor in neighbor_dictionary:
@@ -309,22 +346,22 @@ def main():
                                 neighbor_name=neighbor_dictionary[neighbor][1]
 
                                 if earliestPaths:
-
                                     tt_index = get_ttEntry(neighbor_name,earliestPaths)
                                     if tt_index is None: continue
                                     earliestRide = earliestPaths[tt_index]
-                                    pathUpdate = busport + ';' + station_name +';'+ earliestRide['busNumber']+';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime']
-                                else: print(f"no more bus/train leaving at this hour{currentTime}")
+                                    pathUpdate = str(seq_num) + ';'+ busport + ';' + station_name +';'+ earliestRide['busNumber']+';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime']
+                                else: print(f"no more bus/train leaving at this hour{currentTime}"); break
 
-                                if neighbor_name not in path_taken:
-                                    neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                                    neighbor_socket.sendto(pathUpdate.encode('utf-8'), (neighbor_host, int(neighbor)))
-                                    neighbor_socket.close()
+                                # if neighbor_name not in path_taken:
+                                neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                                neighbor_socket.sendto(pathUpdate.encode('utf-8'), (neighbor_host, int(neighbor)))
+                                last_send_time[seq_num]=datetime.datetime.now().strftime('%H:%M')
+                                seq_num +=1
+                                neighbor_socket.close()
                 # client_socket.close()
                 # client_socket.close()
-                
             elif sock == udp_socket:
-                
+
 
                 # Handle UDP message
                 data, client_address = udp_socket.recvfrom(1024)
@@ -338,11 +375,12 @@ def main():
 
                     # Before continue and sending to other neighbours, check if the current station is the destination. 
                     # If so, send response back to the source and break
-                    final_destination=path.split(';')[0]
+                    final_destination=path.split(';')[1]
+                    print("this is final",final_destination)
                     if station_name == final_destination:
                         print(f"\nQuery Success!\tCurrent time:{currentTime}\nPath taken:{path}\nNow returning query to source!\n")
                         path += ';'+ station_name
-                        result = getStations(path)[:]
+                        result = getStations(path)
                         path = "~" + path  
                         for item in result:
                             path += "-" + item
@@ -358,7 +396,7 @@ def main():
 
                     
                     #if this station is not the final destination then send udp to neighbours.
-                    path_taken = path.split(';')[1:]
+                    path_taken = path.split(';')[2:]
                     if neighbor_dictionary:
                         for neighbor in neighbor_dictionary:
                             tt_index=''
@@ -389,6 +427,8 @@ def main():
                     backtrack_1 = result[-1].split("-")
                     result[-1] = backtrack_1[0]
 
+                    print("the result",result)
+
                     output_to_html =''
 
                     #if this is the source station name who got the request from client return string information to client.
@@ -417,7 +457,6 @@ def main():
                         print(f"\nReceived backtrack message {backPath}")
                         backtrack(backPath)
 
-            
 
 
             
