@@ -317,24 +317,6 @@ int is_station_in_path(const char *station_name, const char *path) {
 }
 
 
-// Function to flood the network with the query
-void flood_network(const char* query, int udp_sock, const char* current_station) {
-    for (int i = 0; i < neighbor_count; i++) {
-        if (!is_station_in_path(neighbors[i].station_name, query)) {
-            struct sockaddr_in dest_addr;
-            char message[BUFFER_SIZE];
-            snprintf(message, sizeof(message), "%s;%s", query, current_station);
-
-            memset(&dest_addr, 0, sizeof(dest_addr));
-            dest_addr.sin_family = AF_INET;
-            dest_addr.sin_port = htons(neighbors[i].udp_port);
-            inet_pton(AF_INET, neighbors[i].address, &dest_addr.sin_addr);
-
-            printf("\nSending flood message to neighbor %s at UDP port %d with message: %s\n", neighbors[i].station_name, neighbors[i].udp_port, message);
-            sendto(udp_sock, message, strlen(message), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
-        }
-    }
-}
 
 // Function to backtrack the path to the source
 void backtrack(const char* path, int udp_sock) {
