@@ -300,19 +300,22 @@ void cleanup(Timetable *timetable, int tcp_sock, int udp_sock) {
     close(udp_sock);
 }
 
-// Function to check if a station is in the path
+// Function to check if a station is in the path starting from the second element
 int is_station_in_path(const char *station_name, const char *path) {
     char copy_path[BUFFER_SIZE];
-    strcpy(copy_path, path);
-    char *token = strtok(copy_path, ";");
-    while (token != NULL) {
-        if (strcmp(token, station_name) == 0) {
-            return 1;
+    strcpy(copy_path, path); // Copy the path to avoid modifying the original string
+    char *token = strtok(copy_path, ";"); // Skip the final destination
+    token = strtok(NULL, ";"); // Get the first station in the path
+
+    while (token != NULL) { // Iterate through the rest of the path
+        if (strcmp(token, station_name) == 0) { // Check if the current token matches the station name
+            return 1; // Station is found in the path
         }
-        token = strtok(NULL, ";");
+        token = strtok(NULL, ";"); // Move to the next token
     }
-    return 0;
+    return 0; // Station is not found in the path
 }
+
 
 // Function to flood the network with the query
 void flood_network(const char* query, int udp_sock, const char* current_station) {
@@ -579,11 +582,16 @@ int main(int argc, char* argv[]) {
                     printf("Current time extracted from path: %s\n", current_time);
 
                     for (int i = 0; i < neighbor_count; i++) {
+                        printf("inside the for loop");
                         if (!is_station_in_path(neighbors[i].station_name, path)) {
+                            printf("inside the first IF");
+
                             TimetableEntry earliest_entry;
                             earliest_departure(&timetable, neighbors[i].station_name, current_time, &earliest_entry);
 
                             if (earliest_entry.departureTime[0] != '\0') {
+                                printf("inside the second IF");
+
                                 char message[BUFFER_SIZE];
                                 snprintf(message, sizeof(message), "%s;%s;%s;%s;%s;%s",
                                          path, station_name, earliest_entry.routeName,
