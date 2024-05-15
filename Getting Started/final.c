@@ -21,7 +21,7 @@
 
 #define MAX_FILENAME_LENGTH 61 // Adjust as needed
 
-const char* ip_address = "10.135.108.23";
+const char* ip_address = "10.0.0.24";
 
 typedef struct {
     char station_name[256];
@@ -138,7 +138,7 @@ void check_and_update_timetable(Timetable *timetable, const char *filename) {
     } else {
         printf("File has not been modified.\n");
     }
-    print_timetable(timetable);
+    //print_timetable(timetable);
     printf("Finished CHECK AND UPDATE TIMETABLE FUNCTION\n");
 }
 
@@ -196,9 +196,11 @@ void add_neighbor(const char* station_name, int udp_port) {
 }
 
 void print_neighbors() {
+    printf("\n=== Neighbor List ===\n");
     for (int i = 0; i < neighbor_count; i++) {
-        printf("NEIGHBOR: %s:%d at Address: %s\n\n", neighbors[i].station_name, neighbors[i].udp_port, neighbors[i].address);
+        printf("NEIGHBOR: %s:%d at Address: %s\n", neighbors[i].station_name, neighbors[i].udp_port, neighbors[i].address);
     }
+    printf("=====================\n\n");
 }
 
 int setup_tcp_socket(int port) {
@@ -318,13 +320,14 @@ void flood_network(const char* query, int udp_sock, const char* current_station)
         if (!is_station_in_path(neighbors[i].station_name, query)) {
             struct sockaddr_in dest_addr;
             char message[BUFFER_SIZE];
-            snprintf(message, sizeof(message), "~%s;%s", query, current_station);
+            snprintf(message, sizeof(message), "%s;%s", query, current_station);
 
             memset(&dest_addr, 0, sizeof(dest_addr));
             dest_addr.sin_family = AF_INET;
             dest_addr.sin_port = htons(neighbors[i].udp_port);
             inet_pton(AF_INET, neighbors[i].address, &dest_addr.sin_addr);
 
+            printf("\nSending flood message to neighbor %s at UDP port %d with message: %s\n", neighbors[i].station_name, neighbors[i].udp_port, message);
             sendto(udp_sock, message, strlen(message), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
         }
     }
@@ -352,6 +355,7 @@ void backtrack(const char* path, int udp_sock) {
                 dest_addr.sin_port = htons(neighbors[i].udp_port);
                 inet_pton(AF_INET, neighbors[i].address, &dest_addr.sin_addr);
 
+                printf("\nBacktracking message to neighbor %s at UDP port %d with message: %s\n", neighbors[i].station_name, neighbors[i].udp_port, path);
                 sendto(udp_sock, path, strlen(path), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
                 break;
             }
@@ -452,9 +456,6 @@ int main(int argc, char* argv[]) {
     fd_set readfds;
     char buffer[BUFFER_SIZE];
     int maxfd = (tcp_sock > udp_sock ? tcp_sock : udp_sock) + 1;
-    
-    // Hard-coded current time for TCP queries
-    const char *current_time = "10:30";
 
     while (1) {
         FD_ZERO(&readfds);
@@ -487,7 +488,7 @@ int main(int argc, char* argv[]) {
 
                 for (int i = 0; i < neighbor_count; i++) {
                     TimetableEntry earliest_entry;
-                    earliest_departure(&timetable, neighbors[i].station_name, current_time, &earliest_entry);
+                    earliest_departure(&timetable, neighbors[i].station_name, "10:30", &earliest_entry);
 
                     if (earliest_entry.departureTime[0] != '\0') {
                         char message[BUFFER_SIZE];
@@ -501,9 +502,8 @@ int main(int argc, char* argv[]) {
                         dest_addr.sin_port = htons(neighbors[i].udp_port);
                         inet_pton(AF_INET, neighbors[i].address, &dest_addr.sin_addr);
 
+                        printf("\nFlooding message to neighbor %s at UDP port %d with message: %s\n", neighbors[i].station_name, neighbors[i].udp_port, message);
                         sendto(udp_sock, message, strlen(message), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
-                        printf("Flooding from [%s] to neighbor %s at UDP port %d\n",
-                               extracted_station_name, neighbors[i].station_name, neighbors[i].udp_port);
                     }
                 }
 
@@ -542,7 +542,7 @@ int main(int argc, char* argv[]) {
                     snprintf(sender_station, sizeof(sender_station), "unknown (%s:%d)", inet_ntoa(sender_addr.sin_addr), sender_port);
                 }
 
-                printf("Received UDP message: '%s' from %s\n", buffer, sender_station);
+                printf("\nReceived UDP message: '%s' from %s\n", buffer, sender_station);
 
                 char dataIdentifyer = buffer[0];
                 printf("Data identifier: '%c'\n", dataIdentifyer);
@@ -557,8 +557,52 @@ int main(int argc, char* argv[]) {
                     backtrack(buffer + 1, udp_sock);
                 } else {
                     printf("\nQuery\n");
-                    flood_network(buffer, udp_sock, station_name);
-                }
+                    check_and_update_timetable(&timetable, filename);
+
+                    char path[BUFFER_SIZE];
+                    strcpy(path, buffer);
+
+                    char* tokens = strtok(buffer, ";");
+                    char* final_destination = tokens;
+
+                    char* last_token = NULL;
+                    char* second_last_token = NULL;
+
+                    while (tokens != NULL) {
+                        second_last_token = last_token;
+                        last_token = tokens;
+                        tokens = strtok(NULL, ";");
+                    }
+
+                    char* current_time = second_last_token;
+
+                    printf("Current time extracted from path: %s\n", current_time);
+
+                    for (int i = 0; i < neighbor_count; i++) {
+                        if (!is_station_in_path(neighbors[i].station_name, path)) {
+                            TimetableEntry earliest_entry;
+                            earliest_departure(&timetable, neighbors[i].station_name, current_time, &earliest_entry);
+
+                            if (earliest_entry.departureTime[0] != '\0') {
+                                char message[BUFFER_SIZE];
+                                snprintf(message, sizeof(message), "%s;%s;%s;%s;%s;%s",
+                                         path, station_name, earliest_entry.routeName,
+                                         earliest_entry.departureTime, earliest_entry.arrivalTime, earliest_entry.arrivalStation);
+
+                                struct sockaddr_in dest_addr;
+                                memset(&dest_addr, 0, sizeof(dest_addr));
+                                dest_addr.sin_family = AF_INET;
+                                dest_addr.sin_port = htons(neighbors[i].udp_port);
+                                inet_pton(AF_INET, neighbors[i].address, &dest_addr.sin_addr);
+
+                                printf("\nSending flood message to neighbor %s at UDP port %d with message: %s\n", neighbors[i].station_name, neighbors[i].udp_port, message);
+                                sendto(udp_sock, message, strlen(message), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
+                            } else {
+                                printf("No more bus/train leaving at this hour to %s\n", neighbors[i].station_name);
+                            }
+                        }
+                    }
+                } 
             } else {
                 perror("Error receiving UDP data");
             }
@@ -568,8 +612,6 @@ int main(int argc, char* argv[]) {
     cleanup(&timetable, tcp_sock, udp_sock);
     return 0;
 }
-
-
 
 //./final BusportB 4003 4004 localhost:4006 localhost:4010 
 //./final StationC 4005 4006 localhost:4004 localhost:4008 localhost:4010 
