@@ -50,6 +50,34 @@ typedef struct {
 Neighbor neighbors[MAX_NEIGHBORS];
 int neighbor_count = 0;
 
+void print_neighbors() {
+    printf("\n=== Neighbor List ===\n");
+    for (int i = 0; i < neighbor_count; i++) {
+        printf("NEIGHBOR: %s:%d at Address: %s\n", neighbors[i].station_name, neighbors[i].udp_port, neighbors[i].address);
+    }
+    printf("=====================\n\n");
+}
+
+void add_neighbor(const char* station_name, int udp_port) {
+    for (int i = 0; i < neighbor_count; i++) {
+        if (neighbors[i].udp_port == udp_port) {
+            strcpy(neighbors[i].station_name, station_name);
+        }
+    }
+
+    for (int i = 0; i < neighbor_count; i++) {
+        if (strcmp(neighbors[i].station_name, station_name) == 0 && neighbors[i].udp_port == udp_port) {
+            return; // Neighbor already exists
+        }
+    }
+    if (neighbor_count < MAX_NEIGHBORS) {
+        strncpy(neighbors[neighbor_count].station_name, station_name, sizeof(neighbors[neighbor_count].station_name) - 1);
+        neighbors[neighbor_count].udp_port = udp_port;
+        neighbor_count++;
+        print_neighbors(); // Print after adding a new neighbor
+    }
+}
+
 void add_timetable_entry(Timetable *timetable, TimetableEntry entry) {
     if (timetable->numEntries >= timetable->capacity) {
         timetable->capacity *= 2;
@@ -172,34 +200,6 @@ void earliest_departure(const Timetable *timetable, const char *destination, con
     } else {
         result_entry->departureTime[0] = '\0'; // Indicate no available departure
     }
-}
-
-void add_neighbor(const char* station_name, int udp_port) {
-    for (int i = 0; i < neighbor_count; i++) {
-        if (neighbors[i].udp_port == udp_port) {
-            strcpy(neighbors[i].station_name, station_name);
-        }
-    }
-
-    for (int i = 0; i < neighbor_count; i++) {
-        if (strcmp(neighbors[i].station_name, station_name) == 0 && neighbors[i].udp_port == udp_port) {
-            return; // Neighbor already exists
-        }
-    }
-    if (neighbor_count < MAX_NEIGHBORS) {
-        strncpy(neighbors[neighbor_count].station_name, station_name, sizeof(neighbors[neighbor_count].station_name) - 1);
-        neighbors[neighbor_count].udp_port = udp_port;
-        neighbor_count++;
-        print_neighbors(); // Print after adding a new neighbor
-    }
-}
-
-void print_neighbors() {
-    printf("\n=== Neighbor List ===\n");
-    for (int i = 0; i < neighbor_count; i++) {
-        printf("NEIGHBOR: %s:%d at Address: %s\n", neighbors[i].station_name, neighbors[i].udp_port, neighbors[i].address);
-    }
-    printf("=====================\n\n");
 }
 
 int setup_tcp_socket(int port) {
@@ -399,35 +399,72 @@ void create_return_query(const char *path, const char *current_station, char *re
 }
 
 // Function to handle return queries
-void handle_return_query(const char *message, int udp_sock) {
+void handle_return_query(const char *message, const char *station_name, int udp_sock) {
     char copy_message[BUFFER_SIZE];
     strcpy(copy_message, message);
 
-    // Remove the last station from the return path
-    char *last_dash = strrchr(copy_message, '-');
-    if (last_dash) {
-        *last_dash = '\0'; // Terminate the string to remove the last station
-        char *last_station = last_dash + 1;
+    printf("Handling return query: %s\n", copy_message);
 
-        // Find the previous station in the path
-        char *previous_dash = strrchr(copy_message, '-');
-        if (previous_dash) {
-            char previous_station[256];
-            strncpy(previous_station, previous_dash + 1, last_dash - previous_dash - 1);
-            previous_station[last_dash - previous_dash - 1] = '\0';
+    // Extract the final destination
+    char final_destination[256];
+    char *first_semi_colon = strchr(copy_message, ';');
+    if (first_semi_colon) {
+        strncpy(final_destination, copy_message + 1, first_semi_colon - copy_message - 1);
+        final_destination[first_semi_colon - copy_message - 1] = '\0';
+    } else {
+        printf("Invalid return query format\n");
+        return;
+    }
 
-            // Send the return query to the previous station
+    // Check if the current station is the final destination
+    if (strcmp(station_name, final_destination) == 0) {
+        // Find the last station in the path
+        char *last_dash = strrchr(copy_message, '-');
+        if (last_dash) {
+            char *last_station = last_dash + 1;
+
+            // Send the return query to the last station
             for (int i = 0; i < neighbor_count; i++) {
-                if (strcmp(neighbors[i].station_name, previous_station) == 0) {
+                if (strcmp(neighbors[i].station_name, last_station) == 0) {
                     struct sockaddr_in dest_addr;
                     memset(&dest_addr, 0, sizeof(dest_addr));
                     dest_addr.sin_family = AF_INET;
                     dest_addr.sin_port = htons(neighbors[i].udp_port);
                     inet_pton(AF_INET, neighbors[i].address, &dest_addr.sin_addr);
 
-                    //printf("\nForwarding return query to neighbor %s at UDP port %d with message: %s\n", neighbors[i].station_name, neighbors[i].udp_port, copy_message);
+                    printf("Forwarding return query to neighbor %s at UDP port %d with message: %s\n", neighbors[i].station_name, neighbors[i].udp_port, copy_message);
                     sendto(udp_sock, copy_message, strlen(copy_message), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
                     break;
+                }
+            }
+        }
+    } else {
+        // Remove the last station from the return path
+        char *last_dash = strrchr(copy_message, '-');
+        if (last_dash) {
+            *last_dash = '\0'; // Terminate the string to remove the last station
+            char *last_station = last_dash + 1;
+
+            // Find the previous station in the path
+            char *previous_dash = strrchr(copy_message, '-');
+            if (previous_dash) {
+                char previous_station[256];
+                strncpy(previous_station, previous_dash + 1, last_dash - previous_dash - 1);
+                previous_station[last_dash - previous_dash - 1] = '\0';
+
+                // Send the return query to the previous station
+                for (int i = 0; i < neighbor_count; i++) {
+                    if (strcmp(neighbors[i].station_name, previous_station) == 0) {
+                        struct sockaddr_in dest_addr;
+                        memset(&dest_addr, 0, sizeof(dest_addr));
+                        dest_addr.sin_family = AF_INET;
+                        dest_addr.sin_port = htons(neighbors[i].udp_port);
+                        inet_pton(AF_INET, neighbors[i].address, &dest_addr.sin_addr);
+
+                        printf("Forwarding return query to neighbor %s at UDP port %d with message: %s\n", neighbors[i].station_name, neighbors[i].udp_port, copy_message);
+                        sendto(udp_sock, copy_message, strlen(copy_message), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
+                        break;
+                    }
                 }
             }
         }
@@ -598,7 +635,7 @@ int main(int argc, char* argv[]) {
                     add_neighbor(station_name, sender_udp_port);
                 } else if (dataIdentifyer == '~') {
                     printf("RECEIVED A RETURN QUERY\n");
-                    handle_return_query(buffer + 1, udp_sock);
+                    handle_return_query(buffer , station_name, udp_sock);
                 } else {
                     //printf("\nQuery\n");
                     check_and_update_timetable(&timetable, filename);
@@ -627,7 +664,7 @@ int main(int argc, char* argv[]) {
                         create_return_query(path, station_name, return_query);
                         // Send the return query to the last station in the return path
                         printf("This is the return Query: %s\n", return_query);
-                        handle_return_query(return_query, udp_sock);
+                        handle_return_query(return_query, station_name, udp_sock);
                     } else {
                         for (int i = 0; i < neighbor_count; i++) {
                             //printf("inside the for loop\n");
@@ -669,6 +706,7 @@ int main(int argc, char* argv[]) {
     cleanup(&timetable, tcp_sock, udp_sock);
     return 0;
 }
+
 
 //./final BusportB 4003 4004 localhost:4006 localhost:4010 
 //./final StationC 4005 4006 localhost:4004 localhost:4008 localhost:4010 
