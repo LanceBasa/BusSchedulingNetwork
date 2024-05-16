@@ -316,30 +316,43 @@ int is_station_in_path(const char *station_name, const char *path) {
 }
 
 
-// Function to display the path in the specified format
 void display_path(const char* path) {
     char copy_path[BUFFER_SIZE];
     strcpy(copy_path, path);
 
     char* tokens = strtok(copy_path, ";");
+    const char* previous_station = NULL;
+    const char* busNumber = NULL;
+    const char* departTime = NULL;
+    const char* arrivalTime = NULL;
+    const char* arriveAt = NULL;
+
     while (tokens != NULL) {
         if (tokens[0] == '~') {
             tokens = strtok(NULL, ";");
             continue;
         }
 
-        const char* station = tokens;
-        const char* busNumber = strtok(NULL, ";");
-        const char* departTime = strtok(NULL, ";");
-        const char* arrivalTime = strtok(NULL, ";");
-        const char* arriveAt = strtok(NULL, ";");
+        if (!previous_station) {
+            // Initial station
+            previous_station = tokens;
+            tokens = strtok(NULL, ";");
+            continue;
+        }
+
+        busNumber = tokens;
+        departTime = strtok(NULL, ";");
+        arrivalTime = strtok(NULL, ";");
+        arriveAt = strtok(NULL, ";");
 
         printf("From %s catch %s leaving at %s and arrive at %s at %s\n",
-               station, busNumber, departTime, arriveAt, arrivalTime);
+               previous_station, busNumber, departTime, arriveAt, arrivalTime);
 
+        previous_station = arriveAt;
         tokens = strtok(NULL, ";");
     }
 }
+
 
 // Function to create the return query
 void create_return_query(const char *path, const char *current_station, char *return_query) {
@@ -388,17 +401,17 @@ void handle_return_query(const char *message, const char *station_name, int udp_
         return;
     }
 
-    printf("\nFINAL destination EXTRACTED is %s\n", final_destination);
+    //printf("\nFINAL destination EXTRACTED is %s\n", final_destination);
 
     // Find the last dash
     char *last_dash = strrchr(copy_message, '-');
     if (last_dash) {
-        printf("INSIDE THE first IFFFFFF\n");
+        //printf("INSIDE THE first IFFFFFF\n");
         *last_dash = '\0'; // Temporarily terminate the string at the last dash
         char *second_last_dash = strrchr(copy_message, '-');
         *last_dash = '-'; // Restore the original string
 
-        printf("\nThe second last is %s\n",second_last_dash);
+        //printf("\nThe second last is %s\n",second_last_dash);
 
         if (!second_last_dash) {
             printf("Final destination reached at %s. Displaying the path:\n", station_name);
