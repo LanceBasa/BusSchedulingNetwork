@@ -345,10 +345,20 @@ void display_path(const char* path) {
         arrivalTime = strtok(NULL, ";");
         arriveAt = strtok(NULL, ";");
 
-        printf("From %s catch %s leaving at %s and arrive at %s at %s\n",
-               previous_station, busNumber, departTime, arriveAt, arrivalTime);
+        // For the last station, we need to strip the extra part
+        char final_station[256];
+        char *dash_position = strchr(arriveAt, '-');
+        if (dash_position) {
+            strncpy(final_station, arriveAt, dash_position - arriveAt);
+            final_station[dash_position - arriveAt] = '\0';
+        } else {
+            strcpy(final_station, arriveAt);
+        }
 
-        previous_station = arriveAt;
+        printf("From %s catch %s leaving at %s and arrive at %s at %s\n",
+               previous_station, busNumber, departTime, final_station, arrivalTime);
+
+        previous_station = final_station;
         tokens = strtok(NULL, ";");
     }
 }
