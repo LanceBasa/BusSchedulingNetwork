@@ -23,6 +23,9 @@
 
 const char* ip_address = "10.135.108.23";
 
+char global_response[BUFFER_SIZE * 4]; //= "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";  // Global variable to hold the response
+char global_response2[BUFFER_SIZE * 4] = "HELLO WORLD";
+
 typedef struct {
     char station_name[256];
     char address[256];
@@ -315,7 +318,6 @@ int is_station_in_path(const char *station_name, const char *path) {
     return 0; // Station is not found in the path
 }
 
-
 void display_path(const char* path) {
     char copy_path[BUFFER_SIZE];
     strcpy(copy_path, path);
@@ -326,6 +328,8 @@ void display_path(const char* path) {
     const char* departTime = NULL;
     const char* arrivalTime = NULL;
     const char* arriveAt = NULL;
+
+    
 
     while (tokens != NULL) {
         if (tokens[0] == '~') {
@@ -355,14 +359,20 @@ void display_path(const char* path) {
             strcpy(final_station, arriveAt);
         }
 
-        printf("From %s catch %s leaving at %s and arrive at %s at %s\n",
-               previous_station, busNumber, departTime, final_station, arrivalTime);
+
+
+        char segment[512];
+        snprintf(segment, sizeof(segment),
+                 "From %s catch %s leaving at %s and arrived at %s at %s\n",
+                 previous_station, busNumber, departTime, final_station, arrivalTime);
+        strcat(global_response, segment); // Append segment to response
+
+        //printf("\n\nDISPLAY_PATH:%s\n\n", segment);
 
         previous_station = final_station;
         tokens = strtok(NULL, ";");
     }
 }
-
 
 // Function to create the return query
 void create_return_query(const char *path, const char *current_station, char *return_query) {
@@ -389,10 +399,9 @@ void create_return_query(const char *path, const char *current_station, char *re
     // Remove the trailing dash
     stations[strlen(stations) - 1] = '\0';
 
-    snprintf(return_query, BUFFER_SIZE, "~%s;%s%s", path,current_station, stations);
+    snprintf(return_query, BUFFER_SIZE, "~%s;%s%s", path, current_station, stations);
 }
 
-// Function to handle return queries
 // Function to handle return queries
 void handle_return_query(const char *message, const char *station_name, int udp_sock) {
     char copy_message[BUFFER_SIZE];
@@ -411,17 +420,12 @@ void handle_return_query(const char *message, const char *station_name, int udp_
         return;
     }
 
-    //printf("\nFINAL destination EXTRACTED is %s\n", final_destination);
-
     // Find the last dash
     char *last_dash = strrchr(copy_message, '-');
     if (last_dash) {
-        //printf("INSIDE THE first IFFFFFF\n");
         *last_dash = '\0'; // Temporarily terminate the string at the last dash
         char *second_last_dash = strrchr(copy_message, '-');
         *last_dash = '-'; // Restore the original string
-
-        //printf("\nThe second last is %s\n",second_last_dash);
 
         if (!second_last_dash) {
             printf("Final destination reached at %s. Displaying the path:\n", station_name);
@@ -480,7 +484,6 @@ void handle_return_query(const char *message, const char *station_name, int udp_
         }
     }
 }
-
 
 int main(int argc, char* argv[]) {
     if (argc < 4) { // Ensure minimum arguments to prevent segfault
@@ -573,6 +576,7 @@ int main(int argc, char* argv[]) {
             read(new_sock, buffer, BUFFER_SIZE - 1);
 
             char *extracted_station_name = extract_station_name_from_http_request(buffer);
+
             if (extracted_station_name) {
                 //printf("Extracted station name for flooding: %s\n", extracted_station_name);
 
@@ -599,13 +603,25 @@ int main(int argc, char* argv[]) {
                     }
                 }
 
+                // Update the global response and call display_path here
+                //strcat(global_response, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
+                //strcat(global_response, "<html><body><h1>Result</h1>\n");
+
+                //display_path(extracted_station_name);
+
+                //strcat(global_response, "</body></html>");
                 free(extracted_station_name);
             } else {
                 printf("Station name not found in HTTP request\n");
+                strcpy(global_response, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\nStation name not found in HTTP request.\n");
             }
 
-            snprintf(buffer, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nRequest received.\n");
-            send(new_sock, buffer, strlen(buffer), 0);
+            send(new_sock, global_response, strlen(global_response), 0);
+
+            memset(global_response, 0, sizeof(global_response));
+
+            // snprintf(buffer, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: %lu\r\n\r\n%s", strlen(global_response), global_response);
+            // send(new_sock, buffer, strlen(buffer), 0);
             close(new_sock);
         }
 
@@ -637,7 +653,6 @@ int main(int argc, char* argv[]) {
                 printf("\nReceived UDP message: '%s' from %s\n", buffer, sender_station);
 
                 char dataIdentifyer = buffer[0];
-                //printf("Data identifier: '%c'\n", dataIdentifyer);
 
                 if (dataIdentifyer == '!') {
                     char station_name[256];
@@ -648,7 +663,6 @@ int main(int argc, char* argv[]) {
                     printf("RECEIVED A RETURN QUERY\n");
                     handle_return_query(buffer , station_name, udp_sock);
                 } else {
-                    //printf("\nQuery\n");
                     check_and_update_timetable(&timetable, filename);
 
                     char path[BUFFER_SIZE];
@@ -666,8 +680,6 @@ int main(int argc, char* argv[]) {
 
                     char* current_time = last_token;
 
-                    //printf("Current time extracted from path: %s\n", current_time);
-
                     //IF THE CURRENT STATION IS THE SAME AS FINAL DESTINATION
                     if (strcmp(station_name, final_destination) == 0) {
                         // Create the return query
@@ -678,16 +690,11 @@ int main(int argc, char* argv[]) {
                         handle_return_query(return_query, station_name, udp_sock);
                     } else {
                         for (int i = 0; i < neighbor_count; i++) {
-                            //printf("inside the for loop\n");
                             if (!is_station_in_path(neighbors[i].station_name, path)) {
-                                //printf("inside the first IF\n");
-
                                 TimetableEntry earliest_entry;
                                 earliest_departure(&timetable, neighbors[i].station_name, current_time, &earliest_entry);
 
                                 if (earliest_entry.departureTime[0] != '\0') {
-                                    //printf("inside the second IF\n");
-
                                     char message[BUFFER_SIZE];
                                     snprintf(message, sizeof(message), "%s;%s;%s;%s;%s",
                                             path, station_name, earliest_entry.routeName,
@@ -699,10 +706,7 @@ int main(int argc, char* argv[]) {
                                     dest_addr.sin_port = htons(neighbors[i].udp_port);
                                     inet_pton(AF_INET, neighbors[i].address, &dest_addr.sin_addr);
 
-                                    //printf("\nSending flood message to neighbor %s at UDP port %d with message: %s\n", neighbors[i].station_name, neighbors[i].udp_port, message);
                                     sendto(udp_sock, message, strlen(message), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
-                                } else {
-                                   // printf("No more bus/train leaving at this hour to %s\n", neighbors[i].station_name);
                                 }
                             }
                         }

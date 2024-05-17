@@ -21,7 +21,7 @@
 
 #define MAX_FILENAME_LENGTH 61 // Adjust as needed
 
-const char* ip_address = "10.135.98.116";
+const char* ip_address = "10.135.108.23";
 
 typedef struct {
     char station_name[256];
