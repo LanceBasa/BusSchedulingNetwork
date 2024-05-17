@@ -24,7 +24,7 @@
 // const char* ip_address = "10.135.123.132";
 // const char *hostname = "localhost";
 
-
+char global_response[BUFFER_SIZE *4];
 
 
 
@@ -411,8 +411,12 @@ void display_path(const char* path) {
             strcpy(final_station, arriveAt);
         }
 
-        printf("From %s catch %s leaving at %s and arrive at %s at %s\n",
-               previous_station, busNumber, departTime, final_station, arrivalTime);
+        // printf("From %s catch %s leaving at %s and arrive at %s at %s\n",
+        //        previous_station, busNumber, departTime, final_station, arrivalTime);
+        char segment[512];
+        snprintf(segment, sizeof(segment), "From %s catch %s leaving at %s and arrive at %s at %s\n",
+                 previous_station, busNumber, departTime, final_station, arrivalTime);
+        strcat(global_response, segment);   
 
         previous_station = final_station;
         tokens = strtok(NULL, ";");
@@ -717,10 +721,12 @@ int main(int argc, char* argv[]) {
                 free(extracted_station_name);
             } else {
                 printf("Station name not found in HTTP request\n");
+                strcpy(global_response, "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nBad request\n"); //changed this HERHER
             }
+            
+            //snprintf(buffer, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nRequest received.\n");
 
-            snprintf(buffer, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nRequest received.\n");
-            send(new_sock, buffer, strlen(buffer), 0);
+            send(new_sock, global_response, strlen(global_response), 0);
             close(new_sock);
         }
 
