@@ -23,6 +23,8 @@
 
 const char* ip_address = "10.135.98.116";
 
+char global_response[BUFFER_SIZE * 4];
+
 typedef struct {
     char station_name[256];
     char address[256];
@@ -337,7 +339,7 @@ void display_path(const char* path, int tcp_sock) {
         token = strtok(NULL, ";");
     }
 
-    char formatted_path[BUFFER_SIZE] = "";
+    char formatted_path[BUFFER_SIZE * 4] = "";
     // Start from the second element
     for (int i = 1; i < token_count; i += 4) {
         if (i + 4 < token_count) {
@@ -350,38 +352,42 @@ void display_path(const char* path, int tcp_sock) {
 
     printf("This is the formatted path: %s", formatted_path);
 
+    strcpy(global_response, formatted_path);
+
+
+
     // Send the formatted path to the browser
-    int sock;
-    struct sockaddr_in addr;
-    char response[BUFFER_SIZE * 2];
+    // int sock;
+    // struct sockaddr_in addr;
+    // char response[BUFFER_SIZE * 2];
 
-    snprintf(response, sizeof(response), "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n%s", formatted_path);
+    // snprintf(response, sizeof(response), "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n%s", formatted_path);
 
-    for (int attempt = 0; attempt < 5; attempt++) {
-        sock = socket(AF_INET, SOCK_STREAM, 0);
-        if (sock < 0) {
-            perror("Failed to create TCP socket");
-            return;
-        }
+    // for (int attempt = 0; attempt < 5; attempt++) {
+    //     sock = socket(AF_INET, SOCK_STREAM, 0);
+    //     if (sock < 0) {
+    //         perror("Failed to create TCP socket");
+    //         return;
+    //     }
 
-        memset(&addr, 0, sizeof(addr));
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = inet_addr(ip_address); // assuming the browser is on the same machine
-        addr.sin_port = htons(tcp_sock);
+    //     memset(&addr, 0, sizeof(addr));
+    //     addr.sin_family = AF_INET;
+    //     addr.sin_addr.s_addr = inet_addr(ip_address); // assuming the browser is on the same machine
+    //     addr.sin_port = htons(tcp_sock);
 
-        if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-            perror("Failed to connect to browser");
-            close(sock);
-            sleep(1); // Wait a bit before retrying
-            continue;
-        }
+    //     if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+    //         perror("Failed to connect to browser");
+    //         close(sock);
+    //         sleep(1); // Wait a bit before retrying
+    //         continue;
+    //     }
 
-        send(sock, response, strlen(response), 0);
-        close(sock);
-        return; // Successfully sent, exit the function
-    }
+    //     send(sock, response, strlen(response), 0);
+    //     close(sock);
+    //     return; // Successfully sent, exit the function
+    // }
 
-    printf("Failed to connect to browser after multiple attempts\n");
+    // printf("Failed to connect to browser after multiple attempts\n");
 }
 
 
@@ -624,7 +630,9 @@ int main(int argc, char* argv[]) {
                 printf("Station name not found in HTTP request\n");
             }
 
-            send(new_sock, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nRequest received.", 62, 0);
+            // send(new_sock, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nRequest received.", 62, 0);
+
+            send(new_sock, global_response, strlen(global_response), 0);
             close(new_sock);
         }
 
