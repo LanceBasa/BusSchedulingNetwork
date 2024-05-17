@@ -21,8 +21,8 @@
 
 #define MAX_FILENAME_LENGTH 61 // Adjust as needed
 
-const char* ip_address = "10.135.123.132";
-const char *hostname = "localhost";
+// const char* ip_address = "10.135.123.132";
+// const char *hostname = "localhost";
 
 
 
@@ -217,7 +217,7 @@ int setup_tcp_socket(int port, char *localip) {
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = inet_addr(ip_address);
+    addr.sin_addr.s_addr = inet_addr(localip);
     addr.sin_port = htons(port);
 
     if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
@@ -242,7 +242,7 @@ int setup_udp_socket(int port, char *localip) {
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = inet_addr(ip_address);
+    addr.sin_addr.s_addr = inet_addr(localip);
     addr.sin_port = htons(port);
 
     if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
