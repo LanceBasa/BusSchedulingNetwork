@@ -320,48 +320,33 @@ void display_path(const char* path) {
     char copy_path[BUFFER_SIZE];
     strcpy(copy_path, path);
 
-    char* tokens = strtok(copy_path, ";");
-    const char* previous_station = NULL;
-    const char* busNumber = NULL;
-    const char* departTime = NULL;
-    const char* arrivalTime = NULL;
-    const char* arriveAt = NULL;
+    // Strip the trailing -<station_name> (if present)
+    char* dash_position = strrchr(copy_path, '-');
+    if (dash_position) {
+        *dash_position = '\0';
+    }
 
-    while (tokens != NULL) {
-        if (tokens[0] == '~') {
-            tokens = strtok(NULL, ";");
-            continue;
+    char* tokens[BUFFER_SIZE / 2]; // Array to store tokens
+    int token_count = 0;
+
+    // Tokenize the path string
+    char* token = strtok(copy_path, ";");
+    while (token != NULL) {
+        tokens[token_count++] = token;
+        token = strtok(NULL, ";");
+    }
+
+    // Start from the second element
+    for (int i = 1; i < token_count; i += 4) {
+        if (i + 4 < token_count) {
+            printf("From %s catch %s leaving at %s and arrive at %s at %s\n",
+                   tokens[i], tokens[i + 1], tokens[i + 2], tokens[i + 4], tokens[i + 3]);
         }
-
-        if (!previous_station) {
-            // Initial station
-            previous_station = tokens;
-            tokens = strtok(NULL, ";");
-            continue;
-        }
-
-        busNumber = tokens;
-        departTime = strtok(NULL, ";");
-        arrivalTime = strtok(NULL, ";");
-        arriveAt = strtok(NULL, ";");
-
-        // For the last station, we need to strip the extra part
-        char final_station[256];
-        char *dash_position = strchr(arriveAt, '-');
-        if (dash_position) {
-            strncpy(final_station, arriveAt, dash_position - arriveAt);
-            final_station[dash_position - arriveAt] = '\0';
-        } else {
-            strcpy(final_station, arriveAt);
-        }
-
-        printf("From %s catch %s leaving at %s and arrive at %s at %s\n",
-               previous_station, busNumber, departTime, final_station, arrivalTime);
-
-        previous_station = final_station;
-        tokens = strtok(NULL, ";");
     }
 }
+
+
+
 
 
 // Function to create the return query
