@@ -21,7 +21,12 @@
 
 #define MAX_FILENAME_LENGTH 61 // Adjust as needed
 
-const char* ip_address = "10.135.98.116";
+const char* ip_address = "10.135.123.132";
+const char *hostname = "localhost";
+
+
+
+
 
 typedef struct {
     char station_name[256];
@@ -202,7 +207,7 @@ void earliest_departure(const Timetable *timetable, const char *destination, con
     }
 }
 
-int setup_tcp_socket(int port) {
+int setup_tcp_socket(int port, char *localip) {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("Failed to create TCP socket");
@@ -227,7 +232,7 @@ int setup_tcp_socket(int port) {
     return sock;
 }
 
-int setup_udp_socket(int port) {
+int setup_udp_socket(int port, char *localip) {
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         perror("Failed to create UDP socket");
@@ -274,23 +279,74 @@ void send_initial_pings(int udp_sock, const char* station_name, int source_port,
     sleep(PING_DURATION); // Wait for the duration to give neighbors time to respond
 }
 
-char* extract_station_name_from_http_request(char *http_request) {
-    const char *to_keyword = "to=";
-    char *start = strstr(http_request, to_keyword);
+// char* extract_station_name_from_http_request(char *http_request) {
+//     const char *to_keyword = "to=";
+//     char *start = strstr(http_request, to_keyword);
+//     if (!start) return NULL;
+
+    
+//     start += strlen(to_keyword);
+//     char *end = strchr(start, ' ');
+//     if (!end) end = strchr(start, '\r'); // Check for end of line if space not found
+//     if (!end) return NULL;
+
+//     ptrdiff_t length = end - start;
+//     char *station_name = malloc(length + 1);
+//     if (!station_name) return NULL;
+
+//     strncpy(station_name, start, length);
+//     station_name[length] = '\0'; // Null-terminate the extracted string
+//     return station_name, extracted_time;
+// }
+
+char* extract_parameter_from_http_request(const char *http_request, const char *param) {
+    // Find the start of the parameter
+    char *start = strstr(http_request, param);
     if (!start) return NULL;
 
-    start += strlen(to_keyword);
-    char *end = strchr(start, ' ');
-    if (!end) end = strchr(start, '\r'); // Check for end of line if space not found
+    // Move the pointer to the start of the value
+    start += strlen(param);
+
+    // Find the end of the value
+    char *end = strchr(start, '&');
+    if (!end) end = strchr(start, ' ');
+    if (!end) end = strchr(start, '\r');
     if (!end) return NULL;
 
+    // Calculate the length of the value
     ptrdiff_t length = end - start;
-    char *station_name = malloc(length + 1);
-    if (!station_name) return NULL;
 
-    strncpy(station_name, start, length);
-    station_name[length] = '\0'; // Null-terminate the extracted string
-    return station_name;
+    // Allocate memory for the extracted value
+    char *value = malloc(length + 1);
+    if (!value) return NULL;
+
+    // Copy the value to the allocated memory
+    strncpy(value, start, length);
+    value[length] = '\0'; // Null-terminate the extracted string
+
+    // Create the formatted time string
+    if (strncmp(param, "departure-time=", strlen("departure-time=")) == 0) {
+        // Extract and format the departure time
+        if (strlen(value) >= 5) { // Check if the value is at least "hh%3Amm"
+            char *formatted_time = malloc(6); // "hh:mm\0"
+            if (!formatted_time) {
+                free(value);
+                return NULL;
+            }
+            // Copy and format the time
+            formatted_time[0] = value[0];
+            formatted_time[1] = value[1];
+            formatted_time[2] = ':';
+            formatted_time[3] = value[5];
+            formatted_time[4] = value[6];
+            formatted_time[5] = '\0';
+
+            free(value);
+            return formatted_time;
+        }
+    }
+
+    return value;
 }
 
 void cleanup(Timetable *timetable, int tcp_sock, int udp_sock) {
@@ -480,6 +536,48 @@ void handle_return_query(const char *message, const char *station_name, int udp_
         }
     }
 }
+char* get_local_ip(){
+    struct sockaddr_in serv;
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+
+    if (sock < 0) {
+        perror("Socket error");
+        return 1;
+    }
+
+    memset(&serv, 0, sizeof(serv));
+    serv.sin_family = AF_INET;
+    serv.sin_addr.s_addr = inet_addr("8.8.8.8");
+    serv.sin_port = htons(53);
+
+    int err = connect(sock, (const struct sockaddr*)&serv, sizeof(serv));
+    if (err < 0) {
+        perror("Connect error");
+        close(sock);
+        return 1;
+    }
+
+    struct sockaddr_in name;
+    socklen_t namelen = sizeof(name);
+    err = getsockname(sock, (struct sockaddr*)&name, &namelen);
+
+    if (err < 0) {
+        perror("Getsockname error");
+        close(sock);
+        return 1;
+    }
+
+    char buffer[INET_ADDRSTRLEN];
+    const char* p = inet_ntop(AF_INET, &name.sin_addr, buffer, sizeof(buffer));
+    if (p != NULL) {
+        return("Local IP address is: %s\n", buffer);
+    } else {
+        printf("Error: Unable to get local IP address\n");
+    }
+
+    close(sock);
+    return 0;
+}
 
 
 int main(int argc, char* argv[]) {
@@ -489,12 +587,15 @@ int main(int argc, char* argv[]) {
     }
     // Extract station name from command line arguments
     char *station_name = argv[1];
+    
+    char* localIP = get_local_ip();
+
 
     int tcp_port = atoi(argv[2]);
     int udp_port = atoi(argv[3]);
 
-    int tcp_sock = setup_tcp_socket(tcp_port);
-    int udp_sock = setup_udp_socket(udp_port);
+    int tcp_sock = setup_tcp_socket(tcp_port, localIP);
+    int udp_sock = setup_udp_socket(udp_port, localIP);
 
     int numNeighbor = argc - 4;
 
@@ -549,6 +650,13 @@ int main(int argc, char* argv[]) {
     char buffer[BUFFER_SIZE];
     int maxfd = (tcp_sock > udp_sock ? tcp_sock : udp_sock) + 1;
 
+
+  
+    
+ 
+    
+
+
     while (1) {
         FD_ZERO(&readfds);
         FD_SET(tcp_sock, &readfds);
@@ -572,7 +680,12 @@ int main(int argc, char* argv[]) {
 
             read(new_sock, buffer, BUFFER_SIZE - 1);
 
-            char *extracted_station_name = extract_station_name_from_http_request(buffer);
+            char *extracted_station_name = extract_parameter_from_http_request(buffer, "to=");
+            char *departure_time = extract_parameter_from_http_request(buffer, "departure-time=");
+            
+            printf("\nDeparture name:%s\tDeparture time:%s\n",extracted_station_name,departure_time);
+
+
             if (extracted_station_name) {
                 //printf("Extracted station name for flooding: %s\n", extracted_station_name);
 
@@ -580,7 +693,7 @@ int main(int argc, char* argv[]) {
 
                 for (int i = 0; i < neighbor_count; i++) {
                     TimetableEntry earliest_entry;
-                    earliest_departure(&timetable, neighbors[i].station_name, "10:30", &earliest_entry);
+                    earliest_departure(&timetable, neighbors[i].station_name, departure_time, &earliest_entry);
 
                     if (earliest_entry.departureTime[0] != '\0') {
                         char message[BUFFER_SIZE];
