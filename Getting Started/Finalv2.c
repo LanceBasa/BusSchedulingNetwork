@@ -508,6 +508,17 @@ void handle_return_query(const char *message, const char *station_name, int udp_
     }
 }
 
+
+int is_direct_neighbor(const char *station_name) {
+    for (int i = 0; i < neighbor_count; i++) {
+        if (strcmp(neighbors[i].station_name, station_name) == 0) {
+            return 1; // Station is a direct neighbor
+        }
+    }
+    return 0; // Station is not a direct neighbor
+}
+
+
 int main(int argc, char* argv[]) {
     if (argc < 4) { // Ensure minimum arguments to prevent segfault
         fprintf(stderr, "Usage: %s station-name tcp-port udp-port neighbor1 [neighbor2 ...]\n", argv[0]);
@@ -632,6 +643,8 @@ int main(int argc, char* argv[]) {
 
             // send(new_sock, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nRequest received.", 62, 0);
 
+            printf("\n\n\n\nTHIS IS THE GLOBAL RESPONSE %s\n\n\n\n\n",global_response);
+
             send(new_sock, global_response, strlen(global_response), 0);
             close(new_sock);
         }
@@ -666,6 +679,8 @@ int main(int argc, char* argv[]) {
                 char dataIdentifyer = buffer[0];
                 //printf("Data identifier: '%c'\n", dataIdentifyer);
 
+                
+
                 if (dataIdentifyer == '!') {
                     char station_name[256];
                     int sender_udp_port;
@@ -694,6 +709,26 @@ int main(int argc, char* argv[]) {
                     char* current_time = last_token;
 
                     //printf("Current time extracted from path: %s\n", current_time);
+
+                    if(is_direct_neighbor(final_destination))
+                    {
+
+                        printf("\nTHIS IS DIRECT NEIGHBOR\n");
+
+                        TimetableEntry earliest_entry;
+                        earliest_departure(&timetable, final_destination, current_time, &earliest_entry);
+
+                        if (earliest_entry.departureTime[0] != '\0') {
+                            char message[BUFFER_SIZE];
+                            snprintf(message, sizeof(message), "%s;%s;%s;%s;%s-%s",
+                                    path, station_name, earliest_entry.routeName,
+                                    earliest_entry.departureTime, earliest_entry.arrivalTime,final_destination);
+
+                            printf("Creating return query for direct neighbor: %s\n", message);
+                            display_path(message, tcp_sock);
+                        }
+                        
+                    }
 
                     //IF THE CURRENT STATION IS THE SAME AS FINAL DESTINATION
                     if (strcmp(station_name, final_destination) == 0) {
