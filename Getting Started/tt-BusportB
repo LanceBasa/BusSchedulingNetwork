@@ -13,7 +13,7 @@ BusportB,115.8200,-31.8600
 11:20,busB_E,stopB,11:41,JunctionE
 11:54,busB_C,stopB,12:19,StationC
 12:30,busB_C,stopB,12:56,StationC
-13:06,busB_C,stopB,13:31,StationC
+13:10,busB_C,stopB,13:31,StationC
 13:39,busB_C,stopB,14:04,StationC
 14:15,busB_E,stopB,14:36,JunctionE
 14:52,busB_E,stopB,15:12,JunctionE
@@ -26,6 +26,6 @@ BusportB,115.8200,-31.8600
 18:57,busB_E,stopB,19:17,JunctionE
 19:31,busB_E,stopB,19:50,JunctionE
 20:07,busB_E,stopB,20:26,JunctionE
-20:39,busB_E,stopB,20:59,JunctionE
+20:40,busB_E,stopB,20:59,JunctionE
 
 #updated

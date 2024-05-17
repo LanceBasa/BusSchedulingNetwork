@@ -40,7 +40,7 @@ neighbor_dictionary={}
 
 def tcp_server(tcp_port):
     # Define the host
-    host = 'localhost'  # Listen on localhost
+    host = '10.135.123.132'  # Listen on localhost
     
     # Create a TCP socket object
     tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -62,7 +62,7 @@ def tcp_server(tcp_port):
 
 def udp_server(udp_port, neighbors=None):
     # Define the host
-    host = 'localhost'  # Listen on localhost
+    host = '10.135.123.132'  # Listen on localhost
     
     # Create a UDP socket object
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -248,6 +248,7 @@ def main():
     
     output_to_html =''
 
+
     while True:
 
 
@@ -258,10 +259,11 @@ def main():
         
         for sock in readable:
             if sock == tcp_socket:
-
                 # Handle TCP connection
                 client_socket, client_address = tcp_socket.accept()
                 print(f"TCP connection established with {client_address}")
+                print(f"TCP connectionsadasd established with {client_address}")
+                print(f"TCP connectisadasdasdason established with {client_address}")
 
                 # Receive data from the client
                 data = client_socket.recv(1024)
@@ -297,6 +299,7 @@ def main():
                         # path += busport + ';' + station_name
                         path_taken = path.split(';')[1:]
 
+                        
 
                         # Send string to neighbours
                         if neighbors:
@@ -313,9 +316,9 @@ def main():
 
                                 if neighbor_port not in path_taken:
                                     neighbor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                                    neighbor_socket.sendto(path.encode('utf-8'), (neighbor_host, int(neighbor_port)))
+                                    neighbor_socket.sendto(pathUpdate.encode('utf-8'), (neighbor_host, int(neighbor)))
                                     neighbor_socket.close()
-
+                # client_socket.close()
                 # client_socket.close()
                 
             elif sock == udp_socket:
@@ -354,14 +357,16 @@ def main():
                     
                     #if this station is not the final destination then send udp to neighbours.
                     path_taken = path.split(';')[1:]
-                    if neighbors:
-                        for neighbor in neighbors:
-                            neighbor_host, neighbor_port = neighbor.split(':')
-                            neighbor_name=neighbor_dictionary[neighbor_port]
+                    if neighbor_dictionary:
+                        for neighbor in neighbor_dictionary:
+                            tt_index=''
+                            neighbor_host=neighbor_dictionary[neighbor][0]
+                            neighbor_name=neighbor_dictionary[neighbor][1]
+                            
                             if earliestPaths:
                                 tt_index = get_ttEntry(neighbor_name,earliestPaths)
+                                if tt_index is None: continue
                                 earliestRide = earliestPaths[tt_index]
-                                # print(f"Earliest path to {neighbor_name}: {earliestRide}")
                                 pathUpdate = path + ';' + station_name +';'+ earliestRide['busNumber']+ ';' + earliestRide['departTime']+ ';'+ earliestRide['arriveTime'] 
                             else: print(f"no more bus/train leaving at this hour{currentTime}")
 
@@ -370,6 +375,55 @@ def main():
                                 neighbor_socket.sendto(pathUpdate.encode('utf-8'), (neighbor_host, int(neighbor_port)))
                                 time.sleep(1)
                                 neighbor_socket.close()
+                    # client_socket.close()
+                
+
+
+                # This is to identify the incoming data as returning data
+                elif dataIdentifyer == '~':
+                    backPath = data.decode('utf-8')
+
+                    
+                    result = backPath.split(";") #
+                    backtrack_1 = result[-1].split("-")
+                    result[-1] = backtrack_1[0]
+
+                    output_to_html =''
+
+                    #if this is the source station name who got the request from client return string information to client.
+                    if station_name == result[1]:
+                        print(f"\nFrom {station_name} going to {result[-1]}")
+                        
+
+                        for item in range(1, len(result) - 3,4):
+                            # print(f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}" )
+                            # output_to_html += f"You departed from {result[item]} at {result[item+1]} and arrived at {result[item+3]} at {result[item+2]}\n" 
+                            output_to_html += f"\tFrom {result[item]} catch {result[item+1]} leaving at {result[item+2]} and arrived at {result[item+4]} at {result[item+3]}\n" 
+                        
+                        print(output_to_html)
+
+                        with open('mywebpage2.html', 'r') as file:
+                            response_template = file.read()
+
+                        # Replace the placeholder in the HTML template with the dynamic content
+                        response_html = response_template.replace('{{Here_is_your_route}}', output_to_html)
+
+                        # Construct the HTTP response with the complete HTML content
+                        response = f"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {len(response_html)}\r\n\r\n{response_html}"
+                        client_socket.sendall(response.encode('utf-8'))
+                        # client_socket.close()
+                    else:
+                        print(f"\nReceived backtrack message {backPath}")
+                        backtrack(backPath)
+
+            
+
+
+            
+
+                        
+
+                    
 
                 # This is to identify the incoming data as returning data
                 elif dataIdentifyer == '~':
