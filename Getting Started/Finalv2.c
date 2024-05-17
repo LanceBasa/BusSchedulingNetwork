@@ -20,7 +20,6 @@
 #define PING_DURATION 10 // Duration to send pings
 
 #define MAX_FILENAME_LENGTH 61 // Adjust as needed
-#define MAX_PATHS 100 // Maximum number of paths to store
 
 const char* ip_address = "10.135.98.116";
 
@@ -48,14 +47,8 @@ typedef struct {
     time_t lastModified;
 } Timetable;
 
-typedef struct {
-    char paths[MAX_PATHS][BUFFER_SIZE];
-    int count;
-} PathList;
-
 Neighbor neighbors[MAX_NEIGHBORS];
 int neighbor_count = 0;
-PathList path_list = { .count = 0 };
 
 void print_neighbors() {
     printf("\n=== Neighbor List ===\n");
@@ -322,31 +315,8 @@ int is_station_in_path(const char *station_name, const char *path) {
     return 0; // Station is not found in the path
 }
 
-// Function to store paths
-void store_path(const char* path) {
-    if (path_list.count < MAX_PATHS) {
-        strncpy(path_list.paths[path_list.count], path, BUFFER_SIZE - 1);
-        path_list.paths[path_list.count][BUFFER_SIZE - 1] = '\0'; // Ensure null termination
-        path_list.count++;
-    } else {
-        printf("Path storage limit reached. Cannot store more paths.\n");
-    }
-}
 
-void send_paths_to_browser(int tcp_sock) {
-    char response[BUFFER_SIZE * MAX_PATHS];
-    strcpy(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n");
-
-    for (int i = 0; i < path_list.count; i++) {
-        strcat(response, path_list.paths[i]);
-        strcat(response, "\n");
-    }
-
-    write(tcp_sock, response, strlen(response));
-    path_list.count = 0; // Clear stored paths after sending
-}
-
-void display_path(const char* path) {
+void display_path(const char* path, int tcp_sock) {
     char copy_path[BUFFER_SIZE];
     strcpy(copy_path, path);
 
@@ -358,6 +328,7 @@ void display_path(const char* path) {
 
     char* tokens[BUFFER_SIZE / 2]; // Array to store tokens
     int token_count = 0;
+    
 
     // Tokenize the path string
     char* token = strtok(copy_path, ";");
@@ -377,9 +348,43 @@ void display_path(const char* path) {
         }
     }
 
-    printf("%s", formatted_path);
-    store_path(formatted_path);
+    printf("This is the formatted path: %s", formatted_path);
+
+    // Send the formatted path to the browser
+    int sock;
+    struct sockaddr_in addr;
+    char response[BUFFER_SIZE * 2];
+
+    snprintf(response, sizeof(response), "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n%s", formatted_path);
+
+    for (int attempt = 0; attempt < 5; attempt++) {
+        sock = socket(AF_INET, SOCK_STREAM, 0);
+        if (sock < 0) {
+            perror("Failed to create TCP socket");
+            return;
+        }
+
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = inet_addr(ip_address); // assuming the browser is on the same machine
+        addr.sin_port = htons(tcp_sock);
+
+        if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+            perror("Failed to connect to browser");
+            close(sock);
+            sleep(1); // Wait a bit before retrying
+            continue;
+        }
+
+        send(sock, response, strlen(response), 0);
+        close(sock);
+        return; // Successfully sent, exit the function
+    }
+
+    printf("Failed to connect to browser after multiple attempts\n");
 }
+
+
 
 // Function to create the return query
 void create_return_query(const char *path, const char *current_station, char *return_query) {
@@ -410,7 +415,7 @@ void create_return_query(const char *path, const char *current_station, char *re
 }
 
 // Function to handle return queries
-void handle_return_query(const char *message, const char *station_name, int udp_sock) {
+void handle_return_query(const char *message, const char *station_name, int udp_sock, int tcp_sock) {
     char copy_message[BUFFER_SIZE];
     strcpy(copy_message, message);
 
@@ -441,7 +446,7 @@ void handle_return_query(const char *message, const char *station_name, int udp_
 
         if (!second_last_dash) {
             printf("Final destination reached at %s. Displaying the path:\n", station_name);
-            display_path(message);
+            display_path(message, tcp_sock);
             return;
         }
     }
@@ -619,7 +624,7 @@ int main(int argc, char* argv[]) {
                 printf("Station name not found in HTTP request\n");
             }
 
-            send_paths_to_browser(new_sock);
+            send(new_sock, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nRequest received.", 62, 0);
             close(new_sock);
         }
 
@@ -660,7 +665,7 @@ int main(int argc, char* argv[]) {
                     add_neighbor(station_name, sender_udp_port);
                 } else if (dataIdentifyer == '~') {
                     printf("RECEIVED A RETURN QUERY\n");
-                    handle_return_query(buffer , station_name, udp_sock);
+                    handle_return_query(buffer , station_name, udp_sock, tcp_sock);
                 } else {
                     //printf("\nQuery\n");
                     check_and_update_timetable(&timetable, filename);
@@ -689,7 +694,7 @@ int main(int argc, char* argv[]) {
                         create_return_query(path, station_name, return_query);
                         // Send the return query to the last station in the return path
                         printf("This is the return Query: %s\n", return_query);
-                        handle_return_query(return_query, station_name, udp_sock);
+                        handle_return_query(return_query, station_name, udp_sock, tcp_sock);
                     } else {
                         for (int i = 0; i < neighbor_count; i++) {
                             //printf("inside the for loop\n");
