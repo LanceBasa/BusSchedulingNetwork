@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transport Schedule</title>
+  <style>
+    body {
+      background-image: url('https://images.assetsdelivery.com/compings_v2/zoaarts/zoaarts1810/zoaarts181000012.jpg');
+      background-repeat: repeat;
+    }
+    div.box {
+      margin: 1em;
+      width: 30em;
+      border-radius: 6px;
+      border: 1px solid gray;
+      background-color: honeydew;
+      padding: 0.4em;
+    }
+  </style>
+  <script>
+    function updateForms() {
+      var ip = document.getElementById('ipAddress').value;
+      document.getElementById('formBusportB').action = 'http://' + ip + ':4003/';
+      document.getElementById('formBusportF').action = 'http://' + ip + ':4011/';
+      document.getElementById('formJunctionA').action = 'http://' + ip + ':4001/';
+      document.getElementById('formJunctionE').action = 'http://' + ip + ':4009/';
+      document.getElementById('formStationC').action = 'http://' + ip + ':4005/';
+      document.getElementById('formTerminalD').action = 'http://' + ip + ':4007/';
+    }
+  </script>
+</head>
+<body>
+
+
+
+<div class="box">
+  <label for="ipAddress">Enter IP Address:</label>
+  <input type="text" id="ipAddress" placeholder="e.g. 10.135.98.116">
+  <button onclick="updateForms()">Update IP</button>
+</div>
+
+<div class="box">
+  <form id="formBusportB" method="get">
+    <table>
+      <tr>
+        <td style="text-align: right;">Leaving from:</td>
+        <td style="text-align: left;">&nbsp;<b>BusportB</b></td>
+        <td style="text-align: right;">
+          <input type="time" id="departure-time" name="departure-time" value="09:00">
+        </td>
+      </tr>
+      <tr>
+        <td style="text-align: right;"><label for="destination-busportb">Destination:</label></td>
+        <td>
+          <select name="to" id="destination-busportb">
+            <option value="BusportF">BusportF</option>
+            <option value="JunctionA">JunctionA</option>
+            <option value="JunctionE">JunctionE</option>
+            <option value="StationC">StationC</option>
+            <option value="TerminalD">TerminalD</option>
+          </select>
+        </td>
+        <td style="padding-left: 3em;"><input type="submit" value=" Let's go! "></td>
+      </tr>
+    </table>
+  </form>
+</div>
+
+<div class="box">
+  <form id="formBusportF" method="get">
+    <table>
+      <tr>
+        <td style="text-align: right;">Leaving from:</td>
+        <td style="text-align: left;">&nbsp;<b>BusportF</b></td>
+        <td style="text-align: right;">
+          <input type="time" id="departure-time" name="departure-time" value="09:00">
+        </td>
+      </tr>
+      <tr>
+        <td style="text-align: right;"><label for="destination-busportf">Destination:</label></td>
+        <td>
+          <select name="to" id="destination-busportf">
+            <option value="BusportB">BusportB</option>
+            <option value="JunctionA">JunctionA</option>
+            <option value="JunctionE">JunctionE</option>
+            <option value="StationC">StationC</option>
+            <option value="TerminalD">TerminalD</option>
+          </select>
+        </td>
+        <td style="padding-left: 3em;"><input type="submit" value=" Let's go! "></td>
+      </tr>
+    </table>
+  </form>
+</div>
+
+<div class="box">
+  <form id="formJunctionA" method="get">
+    <table>
+      <tr>
+        <td style="text-align: right;">Leaving from:</td>
+        <td style="text-align: left;">&nbsp;<b>JunctionA</b></td>
+        <td style="text-align: right;">
+          <input type="time" id="departure-time" name="departure-time" value="09:00">
+        </td>
+      </tr>
+      <tr>
+        <td style="text-align: right;"><label for="destination-junctiona">Destination:</label></td>
+        <td>
+          <select name="to" id="destination-junctiona">
+            <option value="BusportB">BusportB</option>
+            <option value="BusportF">BusportF</option>
+            <option value="JunctionE">JunctionE</option>
+            <option value="StationC">StationC</option>
+            <option value="TerminalD">TerminalD</option>
+          </select>
+        </td>
+        <td style="padding-left: 3em;"><input type="submit" value=" Let's go! "></td>
+      </tr>
+    </table>
+  </form>
+</div>
+
+<div class="box">
+  <form id="formJunctionE" method="get">
+    <table>
+      <tr>
+        <td style="text-align: right;">Leaving from:</td>
+        <td style="text-align: left;">&nbsp;<b>JunctionE</b></td>
+        <td style="text-align: right;">
+          <input type="time" id="departure-time" name="departure-time" value="09:00">
+        </td>
+      </tr>
+      <tr>
+        <td style="text-align: right;"><label for="destination-junctione">Destination:</label></td>
+        <td>
+          <select name="to" id="destination-junctione">
+            <option value="BusportB">BusportB</option>
+            <option value="BusportF">BusportF</option>
+            <option value="JunctionA">JunctionA</option>
+            <option value="StationC">StationC</option>
+            <option value="TerminalD">TerminalD</option>
+          </select>
+        </td>
+        <td style="padding-left: 3em;"><input type="submit" value=" Let's go! "></td>
+      </tr>
+    </table>
+  </form>
+</div>
+
+<div class="box">
+  <form id="formStationC" method="get">
+    <table>
+      <tr>
+        <td style="text-align: right;">Leaving from:</td>
+        <td style="text-align: left;">&nbsp;<b>StationC</b></td>
+        <td style="text-align: right;">
+          <input type="time" id="departure-time" name="departure-time" value="09:00">
+        </td>
+      </tr>
+      <tr>
+        <td style="text-align: right;"><label for="destination-stationc">Destination:</label></td>
+        <td>
+          <select name="to" id="destination-stationc">
+            <option value="BusportB">BusportB</option>
+            <option value="BusportF">BusportF</option>
+            <option value="JunctionA">JunctionA</option>
+            <option value="JunctionE">JunctionE</option>
+            <option value="TerminalD">TerminalD</option>
+          </select>
+        </td>
+        <td style="padding-left: 3em;"><input type="submit" value=" Let's go! "></td>
+      </tr>
+    </table>
+  </form>
+</div>
+
+<div class="box">
+  <form id="formTerminalD" method="get">
+    <table>
+      <tr>
+        <td style="text-align: right;">Leaving from:</td>
+        <td style="text-align: left;">&nbsp;<b>TerminalD</b></td>
+        <td style="text-align: right;">
+          <input type="time" id="departure-time" name="departure-time" value="09:00">
+        </td>
+      </tr>
+      <tr>
+        <td style="text-align: right;"><label for="destination-terminald">Destination:</label></td>
+        <td>
+          <select name="to" id="destination-terminald">
+            <option value="BusportB">BusportB</option>
+            <option value="BusportF">BusportF</option>
+            <option value="JunctionA">JunctionA</option>
+            <option value="JunctionE">JunctionE</option>
+            <option value="StationC">StationC</option>
+          </select>
+        </td>
+        <td style="padding-left: 3em;"><input type="submit" value=" Let's go! "></td>
+      </tr>
+    </table>
+  </form>
+</div>
+
+</body>
+</html>
