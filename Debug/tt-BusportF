@@ -1,0 +1,17 @@
+# station-name,longitude,latitude
+BusportF,115.9100,-31.7800
+# departure-time,route-name,departing-from,arrival-time,arrival-station
+06:01,busF_A,stopF,06:51,JunctionA
+07:07,busF_A,stopF,07:56,JunctionA
+08:11,busF_A,stopF,09:01,JunctionA
+09:16,busF_A,stopF,10:06,JunctionA
+10:20,busF_A,stopF,11:10,JunctionA
+11:28,busF_A,stopF,12:17,JunctionA
+12:31,busF_A,stopF,13:20,JunctionA
+13:35,busF_A,stopF,14:23,JunctionA
+14:41,busF_A,stopF,15:31,JunctionA
+15:49,busF_A,stopF,16:37,JunctionA
+16:55,busF_A,stopF,17:43,JunctionA
+18:01,busF_A,stopF,18:49,JunctionA
+19:03,busF_A,stopF,19:51,JunctionA
+20:06,busF_A,stopF,20:56,JunctionA
