@@ -372,7 +372,7 @@ int is_station_in_path(const char *station_name, const char *path) {
 }
 
 
-void display_path(const char* path,int tcp_sock) {
+void display_path(const char* path) {
     char copy_path[BUFFER_SIZE];
     strcpy(copy_path, path);
 
@@ -382,13 +382,6 @@ void display_path(const char* path,int tcp_sock) {
     const char* departTime = NULL;
     const char* arrivalTime = NULL;
     const char* arriveAt = NULL;
-
-    char buffer2[BUFFER_SIZE];
-    struct sockaddr_in cli_addr2;
-    socklen_t cli_len2 = sizeof(cli_addr2);
-
-    int new_sock2 = accept(tcp_sock, (struct sockaddr*)&cli_addr2, &cli_len2);
-    char segment[512];
 
     while (tokens != NULL) {
         if (tokens[0] == '~') {
@@ -423,27 +416,7 @@ void display_path(const char* path,int tcp_sock) {
 
         previous_station = final_station;
         tokens = strtok(NULL, ";");
-        snprintf(segment, sizeof(segment), "From %s catch %s leaving at %s and arrive at %s at %s\n", previous_station, busNumber, departTime, final_station, arrivalTime);
-
     }
-    
-    // sleep(2);  // Sleep for 5 seconds
-
-
-    snprintf(buffer2, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n{This is tet}\n");
-    strcat(buffer2,segment);
-
-    send(new_sock2, buffer2, strlen(buffer2), 0);
-    close(new_sock2); 
-
-// char segment[512];
-//         snprintf(segment, sizeof(segment), "From %s catch %s leaving at %s and arrive at %s at %s\n",
-//                  previous_station, busNumber, departTime, final_station, arrivalTime);
-//         strcat(global_response, segment);   
-
-//         previous_station = final_station;
-//         tokens = strtok(NULL, ";");
-
 }
 
 
@@ -508,7 +481,7 @@ void handle_return_query(const char *message, const char *station_name, int udp_
 
         if (!second_last_dash) {
             printf("Final destination reached at %s. Displaying the path:\n", station_name);
-              display_path(message, tcp_sock);
+              display_path(message);
 
             return;
         }
