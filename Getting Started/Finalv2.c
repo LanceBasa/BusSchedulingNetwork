@@ -372,7 +372,7 @@ int is_station_in_path(const char *station_name, const char *path) {
 }
 
 
-void display_path(const char* path) {
+void display_path(const char* path,int tcp_sock) {
     char copy_path[BUFFER_SIZE];
     strcpy(copy_path, path);
 
@@ -382,6 +382,13 @@ void display_path(const char* path) {
     const char* departTime = NULL;
     const char* arrivalTime = NULL;
     const char* arriveAt = NULL;
+
+    char buffer2[BUFFER_SIZE];
+    struct sockaddr_in cli_addr2;
+    socklen_t cli_len2 = sizeof(cli_addr2);
+
+    int new_sock2 = accept(tcp_sock, (struct sockaddr*)&cli_addr2, &cli_len2);
+    char segment[512];
 
     while (tokens != NULL) {
         if (tokens[0] == '~') {
@@ -416,7 +423,27 @@ void display_path(const char* path) {
 
         previous_station = final_station;
         tokens = strtok(NULL, ";");
+        snprintf(segment, sizeof(segment), "From %s catch %s leaving at %s and arrive at %s at %s\n", previous_station, busNumber, departTime, final_station, arrivalTime);
+
     }
+    
+    // sleep(2);  // Sleep for 5 seconds
+
+
+    snprintf(buffer2, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n{This is tet}\n");
+    strcat(buffer2,segment);
+
+    send(new_sock2, buffer2, strlen(buffer2), 0);
+    close(new_sock2); 
+
+// char segment[512];
+//         snprintf(segment, sizeof(segment), "From %s catch %s leaving at %s and arrive at %s at %s\n",
+//                  previous_station, busNumber, departTime, final_station, arrivalTime);
+//         strcat(global_response, segment);   
+
+//         previous_station = final_station;
+//         tokens = strtok(NULL, ";");
+
 }
 
 
@@ -450,7 +477,7 @@ void create_return_query(const char *path, const char *current_station, char *re
 
 // Function to handle return queries
 // Function to handle return queries
-void handle_return_query(const char *message, const char *station_name, int udp_sock) {
+void handle_return_query(const char *message, const char *station_name, int udp_sock, int tcp_sock) {
     char copy_message[BUFFER_SIZE];
     strcpy(copy_message, message);
 
@@ -481,7 +508,8 @@ void handle_return_query(const char *message, const char *station_name, int udp_
 
         if (!second_last_dash) {
             printf("Final destination reached at %s. Displaying the path:\n", station_name);
-            display_path(message);
+              display_path(message, tcp_sock);
+
             return;
         }
     }
@@ -719,9 +747,9 @@ int main(int argc, char* argv[]) {
                 printf("Station name not found in HTTP request\n");
             }
 
-            snprintf(buffer, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nRequest received.\n");
-            send(new_sock, buffer, strlen(buffer), 0);
-            close(new_sock);
+            // snprintf(buffer, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nRequest received.\n");
+            // send(new_sock, buffer, strlen(buffer), 0);
+            // close(new_sock);
         }
 
         if (FD_ISSET(udp_sock, &readfds)) {
@@ -761,7 +789,7 @@ int main(int argc, char* argv[]) {
                     add_neighbor(station_name, sender_udp_port);
                 } else if (dataIdentifyer == '~') {
                     printf("RECEIVED A RETURN QUERY\n");
-                    handle_return_query(buffer , station_name, udp_sock);
+                    handle_return_query(buffer , station_name, udp_sock, tcp_sock);
                 } else {
                     //printf("\nQuery\n");
                     check_and_update_timetable(&timetable, filename);
@@ -790,7 +818,7 @@ int main(int argc, char* argv[]) {
                         create_return_query(path, station_name, return_query);
                         // Send the return query to the last station in the return path
                         printf("This is the return Query: %s\n", return_query);
-                        handle_return_query(return_query, station_name, udp_sock);
+                        handle_return_query(return_query, station_name, udp_sock,tcp_sock);
                     } else {
                         for (int i = 0; i < neighbor_count; i++) {
                             //printf("inside the for loop\n");
