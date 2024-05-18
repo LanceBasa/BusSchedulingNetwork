@@ -536,13 +536,13 @@ void handle_return_query(const char *message, const char *station_name, int udp_
         }
     }
 }
-char* get_local_ip(){
+char* get_local_ip() {
     struct sockaddr_in serv;
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
 
     if (sock < 0) {
         perror("Socket error");
-        return 1;
+        return NULL; // Return NULL on error
     }
 
     memset(&serv, 0, sizeof(serv));
@@ -554,7 +554,7 @@ char* get_local_ip(){
     if (err < 0) {
         perror("Connect error");
         close(sock);
-        return 1;
+        return NULL; // Return NULL on error
     }
 
     struct sockaddr_in name;
@@ -564,19 +564,19 @@ char* get_local_ip(){
     if (err < 0) {
         perror("Getsockname error");
         close(sock);
-        return 1;
+        return NULL; // Return NULL on error
     }
 
-    char buffer[INET_ADDRSTRLEN];
+    static char buffer[INET_ADDRSTRLEN]; // Declare buffer as static to avoid returning local variable's address
     const char* p = inet_ntop(AF_INET, &name.sin_addr, buffer, sizeof(buffer));
     if (p != NULL) {
-        return("Local IP address is: %s\n", buffer);
+        close(sock);
+        return buffer; // Return pointer to buffer
     } else {
         printf("Error: Unable to get local IP address\n");
+        close(sock);
+        return NULL; // Return NULL on error
     }
-
-    close(sock);
-    return 0;
 }
 
 
@@ -603,11 +603,13 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < numNeighbor; i++) {
         char address[256];
         int udp_port;
-
         sscanf(argv[i + 4], "%255[^:]:%d", address, &udp_port);
 
         strcpy(neighbors[i].station_name, "");
         strcpy(neighbors[i].address, address);
+        if (strcmp(address,"localhost")==0){
+            strcpy(neighbors[i].address, localIP);
+        }
         neighbors[i].udp_port = udp_port;
     }
 
