@@ -1,3 +1,4 @@
+#python og
 #Needs to start server from this .py
 #Invokes this way: ./station-server.py [station name] [TCP port] [UDP port] [neighbour(s)]
 
@@ -30,9 +31,6 @@ import os
 import datetime
 import time
 import signal
-
-
-
 import urllib.parse
 
 
@@ -41,17 +39,36 @@ num_neighbors = len(sys.argv) - 4
 print( num_neighbors)
 neighbor_dictionary={}
 
-def tcp_server(tcp_port):
-    # Define the host
-    host = '10.135.123.132'  # Listen on localhost
+
+
+def get_local_ip():
+    try:
+        # Create a socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # Connect to an external server
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+        finally:
+            s.close()
+            return local_ip
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        local_ip = "Unable to get IP address"
     
+    return None
+
+
+
+def tcp_server(myIP, tcp_port):    
     # Create a TCP socket object
     tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     
     try:
         # Bind the socket to the host and port
-        tcp_socket.bind((host, tcp_port))
+        tcp_socket.bind((myIP, tcp_port))
         
         # Start listening for incoming connections
         tcp_socket.listen(5)
@@ -63,9 +80,8 @@ def tcp_server(tcp_port):
         print(f"Error binding TCP socket: {e}")
         sys.exit(1)
 
-def udp_server(udp_port, neighbors=None):
+def udp_server(myIP, udp_port):
     # Define the host
-    host = '10.135.123.132'  # Listen on localhost
     
     # Create a UDP socket object
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -73,7 +89,7 @@ def udp_server(udp_port, neighbors=None):
     
     try:
         # Bind the socket to the host and port
-        udp_socket.bind((host, udp_port))
+        udp_socket.bind((myIP, udp_port))
         
         print(f"UDP server listening on port {udp_port}...")
         
@@ -256,10 +272,12 @@ def main():
         return
 
     # Start TCP server
-    tcp_socket = tcp_server(tcp_port)
+    local_IP = get_local_ip()
+    print(local_IP)
+    tcp_socket = tcp_server(local_IP,tcp_port)
     
     # Start UDP server
-    udp_socket = udp_server(udp_port, neighbors)
+    udp_socket = udp_server(local_IP, udp_port)
 
     # Create lists of sockets to monitor
     inputs = [tcp_socket, udp_socket]
