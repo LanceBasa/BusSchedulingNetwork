@@ -3,7 +3,7 @@
 # written by Chris.McDonald@uwa.edu.au
 # thanks to:  https://en.clipdealer.com/vector/media/A:112583666
 
-HOST="localhost"	# assuming all stations on the same host
+HOST="10.135.123.132"	# assuming all stations on the same host
 LEAVE=`date '+%H:%M'`	# or set to a fixed value
 
 # ---------------------------------------
@@ -43,7 +43,7 @@ div.box {
 </style>
 
 <div class="box">
-  <h3>&nbsp;Leaving after $LEAVE</h3>
+  <h3>&nbsp;Transperth Networks</h3>
 </div>
 THE_END
 }
